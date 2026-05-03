@@ -234,13 +234,18 @@ router.post("/mentions", async (req, res) => {
   let skipped = 0;
 
   try {
-    // Fetch recent mentions/notifications — scrape the bot account's mentions timeline
-    // getTweets on the authenticated account's @mentions is done via search
-    const profile = await scraper.getProfile(await scraper.getScreenName?.() ?? "");
-    const botHandle = profile?.username ?? "";
+    // Resolve the bot handle — prefer BOT_HANDLE env var, fallback to getMe()
+    let botHandle = (process.env.BOT_HANDLE ?? "").replace(/^@/, "").trim();
 
     if (!botHandle) {
-      return res.status(503).json({ error: "Could not resolve bot account handle" });
+      try {
+        const me = await scraper.getMe?.();
+        botHandle = me?.username ?? "";
+      } catch { /* ignore */ }
+    }
+
+    if (!botHandle) {
+      return res.status(503).json({ error: "Bot handle not configured. Set BOT_HANDLE in your environment secrets (e.g. myaccount without the @)." });
     }
 
     // Search for recent tweets mentioning the bot handle
