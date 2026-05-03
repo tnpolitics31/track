@@ -126,7 +126,7 @@ export default function IssuesMatrix() {
       ...party,
       count: filtered.reduce((n, issue) => n + (issue.responses[party.shortName]?.length ?? 0), 0),
     }));
-    const topParty = partyPresence.sort((a, b) => b.count - a.count)[0];
+    const topParty = [...partyPresence].sort((a, b) => b.count - a.count)[0];
     return { issueCount, responseCount, partyPresence, topParty };
   }, [filtered, shownParties]);
 
@@ -263,7 +263,11 @@ export default function IssuesMatrix() {
           </div>
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold"><BarChart3 className="w-4 h-4 text-primary" /> Filter snapshot</div>
-            {filtered.slice(0, 6).map((issue) => {
+            {filtered.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                No issues match the current filters.
+              </div>
+            ) : filtered.slice(0, 6).map((issue) => {
               const firstParty = shownParties.find((p) => (issue.responses[p.shortName]?.length ?? 0) > 0);
               return (
                 <div key={issue.id} className="rounded-lg border border-border p-3 space-y-1">
@@ -284,11 +288,11 @@ export default function IssuesMatrix() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted/60 border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[220px] sticky left-0 bg-muted/60 z-10">Issue</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[180px] sm:min-w-[220px] sticky left-0 bg-muted/60 z-10">Issue</th>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-20">Category</th>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">Date</th>
                   <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">Location</th>
-                  {shownParties.map((party) => <th key={party.id} className="px-2 py-3 text-xs font-bold uppercase tracking-wider text-center min-w-[110px]" style={{ color: party.color }}>{party.shortName}</th>)}
+                  {shownParties.map((party) => <th key={party.id} className="px-2 py-3 text-[11px] font-bold uppercase tracking-wider text-center min-w-[92px] sm:min-w-[110px]" style={{ color: party.color }}>{party.shortName}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -298,7 +302,7 @@ export default function IssuesMatrix() {
                     <td className="px-3 py-4"><Skeleton className="h-4 w-16" /></td>
                     <td className="px-3 py-4"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-3 py-4"><Skeleton className="h-4 w-20" /></td>
-                    {shownParties.map((_, j) => <td key={j} className="px-2 py-4"><Skeleton className="h-4 w-16 mx-auto" /></td>)}
+                    {shownParties.map((_, j) => <td key={j} className="px-2 py-4"><Skeleton className="h-4 w-14 mx-auto" /></td>)}
                   </tr>
                 ))}
                 {!loading && filtered.length === 0 && (
@@ -316,12 +320,12 @@ export default function IssuesMatrix() {
                     <tr key={issue.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/10"}`}>
                       <td className={`px-4 py-3 sticky left-0 z-10 ${idx % 2 === 0 ? "bg-card" : "bg-muted/10"} hover:bg-muted/20`}>
                         <Link href={`/issues/${issue.id}`} className="group">
-                          <div className="font-medium text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 leading-snug">{issue.title}</div>
+                          <div className="font-medium text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 leading-snug break-words">{issue.title}</div>
                         </Link>
                       </td>
                       <td className="px-3 py-3"><span className="text-[11px] whitespace-nowrap" style={{ color: catMeta.color }}>{catMeta.emoji} {catMeta.label}</span></td>
                       <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{issue.dateOccurred ? new Date(issue.dateOccurred).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : <span className="text-muted-foreground/40">—</span>}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground">{issue.location ?? <span className="text-muted-foreground/40">—</span>}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground max-w-[120px] sm:max-w-none break-words">{issue.location ?? <span className="text-muted-foreground/40">—</span>}</td>
                       {shownParties.map((party) => <td key={party.id} className="px-2 py-3 text-center align-top"><ResponseCell responses={issue.responses[party.shortName] ?? []} /></td>)}
                     </tr>
                   );
