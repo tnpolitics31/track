@@ -238,7 +238,7 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Desktop nav — hidden on mobile */}
           <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto">
-            {NAV_ITEMS.map(({ href, label, icon: Icon, testId }) => {
+            {NAV_ITEMS.filter(({ href }) => href !== "/approvals" || isAdmin).map(({ href, label, icon: Icon, testId }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
               const isApprovals = href === "/approvals";
               return (
@@ -289,7 +289,7 @@ export default function Layout({ children }: LayoutProps) {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-t border-border">
         <div className="relative">
           <div className="flex overflow-x-auto scrollbar-none">
-            {NAV_ITEMS.map(({ href, label, icon: Icon, testId }) => {
+            {NAV_ITEMS.filter(({ href }) => href !== "/approvals" || isAdmin).map(({ href, label, icon: Icon, testId }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
               const isApprovals = href === "/approvals";
               return (
