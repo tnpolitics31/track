@@ -18,6 +18,10 @@ function extractTweetId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+function isProfileUrl(url: string): boolean {
+  return /^https?:\/\/(www\.)?(twitter\.com|x\.com)\/[A-Za-z0-9_]+\/?$/.test(url);
+}
+
 function normalizeTweetUrl(url: string): string {
   return url.replace(/[?#].*$/, "").replace(/\/$/, "");
 }
@@ -133,10 +137,14 @@ router.post("/", async (req, res) => {
 
   const { url, notes, tags } = parse.data;
   const normalizedUrl = normalizeTweetUrl(url.trim());
-  const tweetId = extractTweetId(normalizedUrl);
 
+  if (isProfileUrl(normalizedUrl)) {
+    return res.status(400).json({ error: "That's a profile URL. Please paste a link to a specific tweet (e.g. twitter.com/user/status/…)." });
+  }
+
+  const tweetId = extractTweetId(normalizedUrl);
   if (!tweetId) {
-    return res.status(400).json({ error: "Invalid Twitter/X URL. Please paste a valid tweet link." });
+    return res.status(400).json({ error: "Invalid Twitter/X URL. Please paste a link to a specific tweet (e.g. twitter.com/user/status/…)." });
   }
 
   // Check for duplicate

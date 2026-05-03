@@ -224,9 +224,26 @@ export default function Tracker() {
     },
   });
 
+  const isProfileUrl = (url: string) =>
+    /^https?:\/\/(www\.)?(twitter\.com|x\.com)\/[A-Za-z0-9_]+\/?$/.test(url.trim());
+
+  const isTweetUrl = (url: string) =>
+    /(?:twitter\.com|x\.com)\/[^/]+\/status\/\d+/.test(url.trim());
+
+  const isTwitterDomain = (url: string) =>
+    url.includes("twitter.com") || url.includes("x.com");
+
+  const urlError: string | null = (() => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return null;
+    if (isProfileUrl(trimmed)) return "That's a profile URL — paste a link to a specific tweet instead.";
+    if (isTwitterDomain(trimmed) && !isTweetUrl(trimmed)) return "URL must link to a specific tweet (e.g. x.com/user/status/…).";
+    return null;
+  })();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!urlInput.trim()) return;
+    if (!urlInput.trim() || urlError) return;
     createTweet.mutate({ data: { url: urlInput.trim(), notes: notesInput || undefined, tags: tagsInput || undefined } });
   };
 
@@ -262,8 +279,8 @@ export default function Tracker() {
               <Input
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="Paste a Twitter / X URL..."
-                className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10"
+                placeholder="Paste a Twitter / X tweet URL..."
+                className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${urlError ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
                 data-testid="input-tweet-url"
                 disabled={createTweet.isPending}
               />
@@ -275,6 +292,11 @@ export default function Tracker() {
                 >
                   <X className="w-4 h-4" />
                 </button>
+              )}
+              {urlError && (
+                <p className="absolute left-0 -bottom-5 text-xs text-destructive flex items-center gap-1">
+                  {urlError}
+                </p>
               )}
             </div>
             <Button
@@ -308,7 +330,7 @@ export default function Tracker() {
             />
             <Button
               type="submit"
-              disabled={!urlInput.trim() || createTweet.isPending}
+              disabled={!urlInput.trim() || !!urlError || createTweet.isPending}
               data-testid="button-submit-tweet"
               className="whitespace-nowrap"
             >
