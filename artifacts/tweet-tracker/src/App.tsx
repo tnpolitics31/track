@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Layout from "@/components/layout";
 import Tracker from "@/pages/tracker";
 import Gallery from "@/pages/gallery";
+import Attendance from "@/pages/attendance";
 import { AdminProvider } from "@/contexts/admin";
 import { useState, useEffect, createContext, useContext } from "react";
 
@@ -22,6 +23,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Tracker} />
         <Route path="/gallery" component={Gallery} />
+        <Route path="/attendance" component={Attendance} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

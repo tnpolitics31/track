@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Database, Images, Sun, Moon, ShieldCheck, ShieldOff } from "lucide-react";
+import { Database, Images, Sun, Moon, ShieldCheck, ShieldOff, ClipboardList } from "lucide-react";
 import { useTheme } from "@/App";
 import { useAdmin } from "@/contexts/admin";
 import AdminLoginModal from "@/components/admin-login-modal";
@@ -49,6 +49,18 @@ export default function Layout({ children }: LayoutProps) {
             >
               <Images className="w-4 h-4" />
               Gallery
+            </Link>
+            <Link
+              href="/attendance"
+              data-testid="nav-attendance"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                location === "/attendance"
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              Attendance
             </Link>
 
             <div className="w-px h-5 bg-border mx-1" />
