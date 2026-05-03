@@ -10,6 +10,7 @@ import issuesRouter from "./issues";
 import syncRouter from "./sync";
 import searchRouter from "./search";
 import pendingRouter from "./pending";
+import schemesRouter from "./schemes";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use("/issues", issuesRouter);
 router.use("/sync", syncRouter);
 router.use("/search", searchRouter);
 router.use("/pending", pendingRouter);
+router.use("/schemes", schemesRouter);
 
 export default router;

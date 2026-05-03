@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox } from "lucide-react";
+import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox, Flag, BookOpen } from "lucide-react";
 import { useTheme } from "@/App";
 import { useAdmin } from "@/contexts/admin";
 import AdminLoginModal from "@/components/admin-login-modal";
@@ -10,6 +10,8 @@ interface LayoutProps { children: React.ReactNode; }
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: BarChart2, testId: "nav-dashboard" },
   { href: "/tracker", label: "Tracker", icon: Database, testId: "nav-tracker" },
+  { href: "/parties", label: "Parties", icon: Flag, testId: "nav-parties" },
+  { href: "/schemes", label: "Schemes", icon: BookOpen, testId: "nav-schemes" },
   { href: "/issues", label: "Issues", icon: AlertTriangle, testId: "nav-issues" },
   { href: "/politicians", label: "Politicians", icon: Users, testId: "nav-politicians" },
   { href: "/events", label: "Events", icon: Calendar, testId: "nav-events" },
