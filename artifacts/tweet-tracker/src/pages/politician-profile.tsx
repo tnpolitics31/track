@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, Twitter, MapPin, Briefcase, FileText, ExternalLink, Users, TrendingUp, Smile, Frown, Meh, Swords, Star } from "lucide-react";
+import { ArrowLeft, Twitter, MapPin, Briefcase, FileText, ExternalLink, Users, TrendingUp, Smile, Frown, Meh, Swords, Star, Lock, CreditCard, Image } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Input } from "@/components/ui/input";
 
 interface Politician {
   id: number; name: string; twitterHandle: string | null; role: string | null;
@@ -42,11 +43,36 @@ function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   );
 }
 
+function PaymentGate({ onUnlock }: { onUnlock: () => void }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-500">
+          <Lock className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">Monthly infographic is locked</h3>
+          <p className="text-xs text-muted-foreground mt-1">Unlock this with a dummy Razorpay payment flow for now.</p>
+        </div>
+      </div>
+      <button
+        onClick={onUnlock}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-colors"
+      >
+        <CreditCard className="w-4 h-4" />
+        Pay & Generate
+      </button>
+    </div>
+  );
+}
+
 export default function PoliticianProfile() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -90,6 +116,10 @@ export default function PoliticianProfile() {
   const sentimentChartData = Object.entries(sentimentCounts)
     .map(([key, val]) => ({ name: SENTIMENT_META[key]?.label ?? key, value: val, color: SENTIMENT_META[key]?.color ?? "#6b7280" }))
     .sort((a, b) => b.value - a.value);
+  const monthLabel = useMemo(() => {
+    const [year, mon] = month.split("-").map(Number);
+    return new Date(year, mon - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  }, [month]);
 
   const profileFields = [politician.name, politician.twitterHandle, politician.role, politician.constituency, politician.bio, politician.partyId];
   const filledCount = profileFields.filter(Boolean).length;
@@ -147,6 +177,32 @@ export default function PoliticianProfile() {
             </p>
           )}
         </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Generate Monthly Infographic</h2>
+            <p className="text-xs text-muted-foreground">Pick a month and unlock the download with Razorpay.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40 text-sm" />
+            {isUnlocked && (
+              <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
+                <Image className="w-4 h-4" />
+                Download PNG
+              </button>
+            )}
+          </div>
+        </div>
+        {!isUnlocked ? (
+          <PaymentGate onUnlock={() => setIsUnlocked(true)} />
+        ) : (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <div className="text-sm font-semibold text-emerald-500">Payment approved</div>
+            <div className="text-xs text-muted-foreground mt-1">{politician.name} infographic for {monthLabel} is ready.</div>
+          </div>
+        )}
       </div>
 
       {/* Stats row */}

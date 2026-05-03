@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Users, FileText, AlertTriangle, BarChart2, Search, ExternalLink, Image, LayoutGrid, HelpCircle, ChevronRight } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Users, FileText, AlertTriangle, BarChart2, Search, ExternalLink, Image, LayoutGrid, HelpCircle, ChevronRight, Lock, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 
@@ -36,6 +36,31 @@ function StatCard({ label, value, color }: { label: string; value: number; color
     <div className="bg-card border border-border rounded-xl p-4 text-center">
       <div className="text-2xl font-bold" style={color ? { color } : {}}>{value}</div>
       <div className="text-xs text-muted-foreground mt-1">{label}</div>
+    </div>
+  );
+}
+
+function PaymentGate({ onUnlock }: { onUnlock: () => void }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-500">
+          <Lock className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">Monthly infographic is locked</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Unlock this with a dummy Razorpay payment flow for now.
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={onUnlock}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-colors"
+      >
+        <CreditCard className="w-4 h-4" />
+        Pay & Generate
+      </button>
     </div>
   );
 }
@@ -318,6 +343,13 @@ export default function Parties() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [loading, setLoading] = useState(false);
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const monthLabel = useMemo(() => {
+    const [year, mon] = month.split("-").map(Number);
+    return new Date(year, mon - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  }, [month]);
 
   useEffect(() => {
     fetch("/api/parties").then((r) => r.json()).then((data: Party[]) => {
@@ -373,6 +405,36 @@ export default function Parties() {
             <h1 className="text-xl font-bold text-foreground">{selectedParty.name}</h1>
             {selectedParty.description && <p className="text-sm text-muted-foreground">{selectedParty.description}</p>}
           </div>
+        </div>
+      )}
+
+      {selectedParty && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Generate Monthly Infographic</h2>
+              <p className="text-xs text-muted-foreground">Pick a month and unlock the download with Razorpay.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40 text-sm" />
+              {isUnlocked && (
+                <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
+                  <Image className="w-4 h-4" />
+                  Download PNG
+                </button>
+              )}
+            </div>
+          </div>
+          {!isUnlocked ? (
+            <PaymentGate onUnlock={() => setIsUnlocked(true)} />
+          ) : (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+              <div className="text-sm font-semibold text-emerald-500">Payment approved</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {selectedParty.shortName} infographic for {monthLabel} is ready.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
