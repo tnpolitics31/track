@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Download, Search, X, Filter, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Download, Search, X, Filter, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -150,6 +150,7 @@ export default function IssuesMatrix() {
   const [dateTo, setDateTo] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [visibleParties, setVisibleParties] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const tableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -190,77 +191,142 @@ export default function IssuesMatrix() {
     { value: "other", label: "Other", emoji: "📌" },
   ];
 
+  const activeFilterCount = [search, dateFrom, dateTo, filterCategory].filter(Boolean).length;
+
   return (
-    <div className="max-w-full px-4 sm:px-6 py-6 space-y-5">
+    <div className="max-w-full px-3 sm:px-6 py-4 sm:py-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Link href="/issues" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Issues
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-0.5">
+          <Link href="/issues" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to Issues
           </Link>
-          <span className="text-muted-foreground/40">/</span>
           <h1 className="text-base font-bold text-foreground flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-primary" />
             Accountability Matrix
           </h1>
         </div>
-        <Button onClick={() => data && exportPDF(data, filtered, visibleParties, dateFrom, dateTo, search)} variant="outline" className="gap-2" disabled={!data || filtered.length === 0}>
-          <Download className="w-4 h-4" /> Export PDF
+        <Button
+          onClick={() => data && exportPDF(data, filtered, visibleParties, dateFrom, dateTo, search)}
+          variant="outline" size="sm" className="gap-1.5 flex-shrink-0 text-xs h-8"
+          disabled={!data || filtered.length === 0}
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Export </span>PDF
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          <Filter className="w-3.5 h-3.5" /> Filters
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {/* Search */}
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by issue or location..." className="pl-9 bg-background border-border text-sm" />
-            {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>}
-          </div>
-          {/* Date range */}
+      {/* Filters — collapsible on mobile */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {/* Filter header toggle */}
+        <button
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left"
+        >
           <div className="flex items-center gap-2">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-0.5">From</label>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-background border-border text-sm w-36" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-0.5">To</label>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-background border-border text-sm w-36" />
-            </div>
-            {(dateFrom || dateTo) && (
-              <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="mt-4 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                <X className="w-3 h-3" /> Clear
-              </button>
+            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {activeFilterCount}
+              </span>
             )}
           </div>
-        </div>
+          {filtersOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </button>
 
-        {/* Category filter */}
-        <div className="flex flex-wrap gap-1.5">
-          <span className="text-xs text-muted-foreground self-center mr-1">Category:</span>
-          <button onClick={() => setFilterCategory("")} className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${!filterCategory ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>All</button>
-          {CATEGORIES.map((c) => (
-            <button key={c.value} onClick={() => setFilterCategory(filterCategory === c.value ? "" : c.value)}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${filterCategory === c.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
-              {c.emoji} {c.label}
-            </button>
-          ))}
-        </div>
+        {filtersOpen && (
+          <div className="px-4 pb-4 space-y-4 border-t border-border/50 pt-3">
+            {/* Search — full width */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Search</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Issue title or location..."
+                  className="pl-9 bg-background border-border w-full"
+                />
+                {search && (
+                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-        {/* Party column toggles */}
-        {data && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground mr-1">Show parties:</span>
-            {data.parties.map((p) => (
-              <button key={p.id} onClick={() => toggleParty(p.shortName)}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition-all border ${visibleParties.includes(p.shortName) ? "text-white border-transparent" : "border-border bg-card text-muted-foreground"}`}
-                style={visibleParties.includes(p.shortName) ? { backgroundColor: p.color } : {}}
-              >{p.shortName}</button>
-            ))}
+            {/* Date range — grid 2 col on mobile, inline on sm+ */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Date Range</label>
+                {(dateFrom || dateTo) && (
+                  <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-primary hover:underline flex items-center gap-0.5">
+                    <X className="w-3 h-3" /> Clear
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground/70 block mb-1">From</label>
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-background border-border w-full text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground/70 block mb-1">To</label>
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-background border-border w-full text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* Category — horizontal scroll */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Category</label>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
+                <button
+                  onClick={() => setFilterCategory("")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${!filterCategory ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                >
+                  All
+                </button>
+                {CATEGORIES.map((c) => (
+                  <button key={c.value}
+                    onClick={() => setFilterCategory(filterCategory === c.value ? "" : c.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${filterCategory === c.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {c.emoji} {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Party toggles — horizontal scroll */}
+            {data && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Show Party Columns</label>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
+                  {data.parties.map((p) => {
+                    const active = visibleParties.includes(p.shortName);
+                    return (
+                      <button key={p.id} onClick={() => toggleParty(p.shortName)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border-2 flex-shrink-0 ${active ? "text-white border-transparent" : "border-border bg-card text-muted-foreground"}`}
+                        style={active ? { backgroundColor: p.color, borderColor: p.color } : {}}
+                      >
+                        {p.shortName}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Clear all */}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFilterCategory(""); }}
+                className="text-xs text-destructive hover:underline"
+              >
+                Clear all filters
+              </button>
+            )}
           </div>
         )}
       </div>
