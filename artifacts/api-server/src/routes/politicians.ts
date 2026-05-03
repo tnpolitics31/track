@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { politiciansTable, partiesTable } from "@workspace/db";
-import { eq, ilike, and } from "drizzle-orm";
+import { eq, like, and } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/adminAuth";
 
 const router = Router();
@@ -11,7 +11,7 @@ router.get("/", async (req, res) => {
   const { party_id, search } = req.query;
   const conditions = [];
   if (party_id) conditions.push(eq(politiciansTable.partyId, Number(party_id)));
-  if (search && typeof search === "string") conditions.push(ilike(politiciansTable.name, `%${search}%`));
+  if (search && typeof search === "string") conditions.push(like(politiciansTable.name, `%${search}%`));
 
   const rows = await db
     .select({

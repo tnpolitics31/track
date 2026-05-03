@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { tweetsTable } from "@workspace/db";
-import { eq, desc, ilike, and, gte, count, sql } from "drizzle-orm";
+import { eq, desc, like, and, gte, count, sql } from "drizzle-orm";
 import {
   CreateTweetBody,
   ListTweetsQueryParams,
@@ -117,7 +117,7 @@ router.get("/", async (req, res) => {
 
   const conditions = [];
   if (type) conditions.push(eq(tweetsTable.type, type));
-  if (search) conditions.push(ilike(tweetsTable.content, `%${search}%`));
+  if (search) conditions.push(like(tweetsTable.content, `%${search}%`));
 
   const tweets = await db
     .select()
@@ -165,8 +165,8 @@ router.post("/", async (req, res) => {
   let resolvedPartyId = partyId ?? null;
   if (!resolvedPoliticianId && metadata.authorHandle) {
     const { politiciansTable } = await import("@workspace/db");
-    const { ilike: ilikeOp } = await import("drizzle-orm");
-    const [matched] = await db.select().from(politiciansTable).where(ilikeOp(politiciansTable.twitterHandle, metadata.authorHandle)).limit(1);
+    const { like: likeOp } = await import("drizzle-orm");
+    const [matched] = await db.select().from(politiciansTable).where(likeOp(politiciansTable.twitterHandle, metadata.authorHandle)).limit(1);
     if (matched) {
       resolvedPoliticianId = matched.id;
       if (!resolvedPartyId && matched.partyId) resolvedPartyId = matched.partyId;
@@ -261,7 +261,7 @@ router.get("/preview", async (req, res) => {
 
 // GET /tweets/stats
 router.get("/stats", async (req, res) => {
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
   const [totalRes, typeRes, screenshotRes, recentRes] = await Promise.all([
     db.select({ count: count() }).from(tweetsTable),
@@ -315,7 +315,7 @@ router.patch("/:id/tags", requireAdmin, async (req, res) => {
     partyId: partyId ?? null,
     politicianId: politicianId ?? null,
     eventId: eventId ?? null,
-    updatedAt: new Date(),
+    updatedAt: new Date().toISOString(),
   }).where(eq(tweetsTable.id, id)).returning();
   if (!updated) return res.status(404).json({ error: "Tweet not found" });
   return res.json(updated);
@@ -376,7 +376,7 @@ router.post("/:id/refresh", async (req, res) => {
       content: metadata.content ?? existing.content,
       type: metadata.type !== "unknown" ? metadata.type : existing.type,
       screenshotUrl: screenshotUrl ?? existing.screenshotUrl,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     })
     .where(eq(tweetsTable.id, parse.data.id))
     .returning();

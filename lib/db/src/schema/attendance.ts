@@ -1,14 +1,14 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
 
-export const attendanceMembersTable = pgTable("attendance_members", {
-  id: serial("id").primaryKey(),
+export const attendanceMembersTable = sqliteTable("attendance_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   slot: text("slot").notNull().unique(),
   name: text("name").notNull(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: text("updated_at").notNull().default(""),
 });
 
-export const attendanceRecordsTable = pgTable("attendance_records", {
-  id: serial("id").primaryKey(),
+export const attendanceRecordsTable = sqliteTable("attendance_records", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   date: text("date").notNull(),
   conservativeStatus: text("conservative_status").notNull().default("present"),
   speechUrl: text("speech_url"),
@@ -16,7 +16,7 @@ export const attendanceRecordsTable = pgTable("attendance_records", {
   opponent2Status: text("opponent_2_status").notNull().default("present"),
   opponent3Status: text("opponent_3_status").notNull().default("present"),
   notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull().default(""),
 });
 
 export type AttendanceMember = typeof attendanceMembersTable.$inferSelect;

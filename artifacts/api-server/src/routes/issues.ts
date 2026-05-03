@@ -133,7 +133,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
     dateOccurred: dateOccurred || null,
     sourceUrl: sourceUrl?.trim() || null,
     location: location?.trim() || null,
-    updatedAt: new Date(),
+    updatedAt: new Date().toISOString(),
   }).where(eq(issuesTable.id, id)).returning();
   if (!updated) return res.status(404).json({ error: "Issue not found." });
   return res.json(updated);
@@ -155,8 +155,8 @@ router.post("/:id/actions", async (req, res) => {
   if (!actionType) return res.status(400).json({ error: "Action type is required." });
   const [action] = await db.insert(issueActionsTable).values({
     issueId,
-    partyId: partyId ? Number(partyId) : 0,
-    politicianId: politicianId ? Number(politicianId) : 0,
+    partyId: partyId ? Number(partyId) : null,
+    politicianId: politicianId ? Number(politicianId) : null,
     actionType,
     description: description?.trim() || null,
     sourceUrl: sourceUrl?.trim() || null,

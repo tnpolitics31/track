@@ -50,7 +50,7 @@ router.put("/members/:slot", requireAdmin, async (req, res) => {
   await ensureMembers();
   const [updated] = await db
     .update(attendanceMembersTable)
-    .set({ name: name.trim(), updatedAt: new Date() })
+    .set({ name: name.trim(), updatedAt: new Date().toISOString() })
     .where(eq(attendanceMembersTable.slot, slot))
     .returning();
   return res.json(updated);
