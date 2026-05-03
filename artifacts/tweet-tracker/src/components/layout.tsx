@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { Database, Images } from "lucide-react";
+import { Database, Images, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/App";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,6 +8,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -43,6 +45,15 @@ export default function Layout({ children }: LayoutProps) {
               <Images className="w-4 h-4" />
               Gallery
             </Link>
+            <div className="w-px h-5 bg-border mx-1" />
+            <button
+              onClick={toggleTheme}
+              data-testid="button-toggle-theme"
+              title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
           </nav>
         </div>
       </header>
