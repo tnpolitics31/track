@@ -1,2 +1,9 @@
 export * from "./generated/api";
-export * from "./generated/types";
+export type {
+  Tweet,
+  TweetStats,
+  TweetType,
+  ErrorResponse,
+  ListTweetsParams,
+  ListTweetsType,
+} from "./generated/types";
