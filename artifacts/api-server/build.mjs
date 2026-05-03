@@ -33,6 +33,7 @@ async function buildAll() {
       "@libsql/client",
       "@libsql/linux-x64-gnu",
       "@libsql/linux-x64-musl",
+      "@the-convocation/twitter-scraper",
       "sharp",
       "better-sqlite3",
       "sqlite3",

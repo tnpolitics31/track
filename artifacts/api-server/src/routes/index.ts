@@ -7,6 +7,7 @@ import politiciansRouter from "./politicians";
 import eventsRouter from "./events";
 import dashboardRouter from "./dashboard";
 import issuesRouter from "./issues";
+import syncRouter from "./sync";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use("/politicians", politiciansRouter);
 router.use("/events", eventsRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/issues", issuesRouter);
+router.use("/sync", syncRouter);
 
 export default router;
