@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { BarChart2, Users, Calendar, FileText, ExternalLink, TrendingUp, Activity } from "lucide-react";
+import { BarChart2, Users, Calendar, FileText, ExternalLink, TrendingUp, Activity, UserRound, Clock3, PartyPopper } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
@@ -26,6 +26,14 @@ interface ActivityDay { date: string; count: number; }
 interface PartyActivityData {
   parties: { id: number; shortName: string; color: string }[];
   data: Record<string, string | number>[];
+}
+interface UserAnalytics {
+  totalTweets: number;
+  tweetsLast30Days: number;
+  averagePerActiveDay: number;
+  topPartyId: number | null;
+  topPoliticianId: number | null;
+  dailySeries: { day: string; count: number }[];
 }
 
 function getHeatColor(count: number, max: number): string {
@@ -95,31 +103,69 @@ function PartyCard({ party }: { party: PartyStats }) {
   );
 }
 
+function StatCard({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+  return (
+    <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3">
+      <div className="text-primary">{icon}</div>
+      <div>
+        <div className="text-2xl font-bold text-foreground tabular-nums">{value}</div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [partyActivity, setPartyActivity] = useState<PartyActivityData | null>(null);
+  const [analytics, setAnalytics] = useState<UserAnalytics | null>(null);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/dashboard/stats").then((r) => r.json()),
       fetch("/api/dashboard/activity").then((r) => r.json()),
       fetch("/api/dashboard/party-activity").then((r) => r.json()),
+      fetch("/api/dashboard/users").then((r) => r.json()),
     ])
-      .then(([stats, act, pa]) => {
+      .then(([stats, act, pa, ua]) => {
         setData(stats);
         setActivity(act);
         setPartyActivity(pa);
+        setAnalytics(ua);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
   const totalPartyTweets = data?.partyStats.reduce((s, p) => s + p.tweetCount, 0) ?? 0;
+  const topParty = data?.partyStats.find((p) => p.id === analytics?.topPartyId);
+  const topPolitician = data?.topPoliticians.find((p) => p.id === analytics?.topPoliticianId);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+          <UserRound className="w-4 h-4 text-primary" />User Analytics
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {loading ? [1,2,3,4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />) : (
+            <>
+              <StatCard label="Total tracked tweets" value={analytics?.totalTweets ?? 0} icon={<FileText className="w-5 h-5" />} />
+              <StatCard label="Last 30 days" value={analytics?.tweetsLast30Days ?? 0} icon={<Clock3 className="w-5 h-5" />} />
+              <StatCard label="Avg / active day" value={analytics?.averagePerActiveDay ?? 0} icon={<TrendingUp className="w-5 h-5" />} />
+              <StatCard label="Top activity source" value={topParty?.shortName ?? "—"} icon={<PartyPopper className="w-5 h-5" />} />
+            </>
+          )}
+        </div>
+        {!loading && topPolitician && (
+          <div className="bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
+            Most tracked politician: <Link href={`/politicians/${topPolitician.id}`} className="text-primary hover:underline">{topPolitician.name}</Link>
+          </div>
+        )}
+      </section>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
@@ -138,7 +184,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Activity Heatmap */}
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
           <Activity className="w-4 h-4 text-primary" />Activity — Last 90 Days
@@ -148,7 +193,6 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* Party comparison chart */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -165,7 +209,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Party comparison recharts */}
         {!loading && partyActivity && partyActivity.data.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Weekly tweet volume by party (last 8 weeks)</p>
@@ -173,10 +216,7 @@ export default function Dashboard() {
               <BarChart data={partyActivity.data} barSize={12}>
                 <XAxis dataKey="week" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                  cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-                />
+                <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {partyActivity.parties.map((p) => (
                   <Bar key={p.id} dataKey={p.shortName} fill={p.color} radius={[3, 3, 0, 0]} />
@@ -185,36 +225,8 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         )}
-
-        {/* Bar distribution */}
-        {!loading && data && totalPartyTweets > 0 && (
-          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tweet distribution by party</p>
-            <div className="flex gap-1 h-8 rounded-lg overflow-hidden">
-              {data.partyStats.filter((p) => p.tweetCount > 0).map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-center text-white text-xs font-bold transition-all"
-                  style={{ backgroundColor: p.color, width: `${(p.tweetCount / totalPartyTweets) * 100}%`, minWidth: p.tweetCount > 0 ? "2rem" : "0" }}
-                  title={`${p.shortName}: ${p.tweetCount}`}
-                >
-                  {p.tweetCount > 0 && p.shortName}
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {data.partyStats.filter((p) => p.tweetCount > 0).map((p) => (
-                <div key={p.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                  {p.shortName} ({p.tweetCount})
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
 
-      {/* Top politicians */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -233,9 +245,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {data?.topPoliticians.map((pol, i) => (
-              <Link key={pol.id} href={`/politicians/${pol.id}`}
-                className="bg-card border border-border rounded-xl p-4 space-y-2 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer block"
-              >
+              <Link key={pol.id} href={`/politicians/${pol.id}`} className="bg-card border border-border rounded-xl p-4 space-y-2 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer block">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-muted-foreground/50 text-xs font-bold tabular-nums">#{i + 1}</span>
@@ -261,7 +271,6 @@ export default function Dashboard() {
         )}
       </section>
 
-      {/* Recent tweets */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -292,9 +301,7 @@ export default function Dashboard() {
                   <div className="text-xs text-muted-foreground line-clamp-1">{tweet.content ?? tweet.url}</div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-muted-foreground hidden sm:block">
-                    {new Date(tweet.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
-                  </span>
+                  <span className="text-xs text-muted-foreground hidden sm:block">{new Date(tweet.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
                   <a href={tweet.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" onClick={(e) => e.stopPropagation()}>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>

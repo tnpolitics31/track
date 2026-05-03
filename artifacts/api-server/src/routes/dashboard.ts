@@ -6,7 +6,6 @@ import { ensureDefaultParties } from "./parties";
 
 const router = Router();
 
-// GET /dashboard/stats
 router.get("/stats", async (_req, res) => {
   await ensureDefaultParties();
 
@@ -89,7 +88,6 @@ router.get("/stats", async (_req, res) => {
   });
 });
 
-// GET /dashboard/activity — tweet count by day for the last 90 days (heatmap data)
 router.get("/activity", async (_req, res) => {
   const since = new Date();
   since.setDate(since.getDate() - 89);
@@ -105,7 +103,6 @@ router.get("/activity", async (_req, res) => {
     .groupBy(sql`date(${tweetsTable.createdAt})`)
     .orderBy(sql`date(${tweetsTable.createdAt})`);
 
-  // Fill in all days in range
   const map = new Map(rows.map((r) => [r.day, r.count]));
   const result: { date: string; count: number }[] = [];
   for (let i = 0; i < 90; i++) {
@@ -117,7 +114,6 @@ router.get("/activity", async (_req, res) => {
   return res.json(result);
 });
 
-// GET /dashboard/party-activity — tweet count by party per week (last 8 weeks)
 router.get("/party-activity", async (_req, res) => {
   const since = new Date();
   since.setDate(since.getDate() - 55);
@@ -136,11 +132,7 @@ router.get("/party-activity", async (_req, res) => {
     .groupBy(sql`strftime('%Y-W%W', ${tweetsTable.createdAt})`, tweetsTable.partyId)
     .orderBy(sql`strftime('%Y-W%W', ${tweetsTable.createdAt})`);
 
-  // Get unique weeks
-  const weeksSet = new Set(rows.map((r) => r.week));
-  const weeks = Array.from(weeksSet).sort();
-
-  // Build chart data: [{week, DMK: n, TVK: n, ...}]
+  const weeks = Array.from(new Set(rows.map((r) => r.week))).sort();
   const data = weeks.map((week) => {
     const entry: Record<string, string | number> = { week };
     for (const party of parties) {
@@ -151,6 +143,33 @@ router.get("/party-activity", async (_req, res) => {
   });
 
   return res.json({ parties: parties.map((p) => ({ id: p.id, shortName: p.shortName, color: p.color })), data });
+});
+
+router.get("/users", async (_req, res) => {
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const [totalTweets, recentTweets, partyRows, politicianRows, weeklyRows] = await Promise.all([
+    db.select({ count: count() }).from(tweetsTable),
+    db.select({ count: count() }).from(tweetsTable).where(gte(tweetsTable.createdAt, sinceStr)),
+    db.select({ partyId: tweetsTable.partyId, count: count() }).from(tweetsTable).where(sql`${tweetsTable.partyId} is not null`).groupBy(tweetsTable.partyId),
+    db.select({ politicianId: tweetsTable.politicianId, count: count() }).from(tweetsTable).where(sql`${tweetsTable.politicianId} is not null`).groupBy(tweetsTable.politicianId),
+    db.select({ day: sql<string>`date(${tweetsTable.createdAt})`.as("day"), count: count() }).from(tweetsTable).where(gte(tweetsTable.createdAt, sinceStr)).groupBy(sql`date(${tweetsTable.createdAt})`).orderBy(sql`date(${tweetsTable.createdAt})`),
+  ]);
+
+  const topPartyRow = partyRows.sort((a, b) => Number(b.count) - Number(a.count))[0] ?? null;
+  const topPoliticianRow = politicianRows.sort((a, b) => Number(b.count) - Number(a.count))[0] ?? null;
+  const weeklyAvg = weeklyRows.length ? Math.round(weeklyRows.reduce((sum, r) => sum + Number(r.count), 0) / weeklyRows.length) : 0;
+
+  return res.json({
+    totalTweets: totalTweets[0]?.count ?? 0,
+    tweetsLast30Days: recentTweets[0]?.count ?? 0,
+    averagePerActiveDay: weeklyAvg,
+    topPartyId: topPartyRow?.partyId ?? null,
+    topPoliticianId: topPoliticianRow?.politicianId ?? null,
+    dailySeries: weeklyRows,
+  });
 });
 
 export default router;
