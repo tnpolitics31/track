@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ShieldOff, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox } from "lucide-react";
+import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox } from "lucide-react";
 import { useTheme } from "@/App";
 import { useAdmin } from "@/contexts/admin";
 import AdminLoginModal from "@/components/admin-login-modal";
@@ -195,13 +195,39 @@ export default function Layout({ children }: LayoutProps) {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const pendingCount = usePendingCount();
 
+  // Secret logo tap counter (5 taps within 3s)
+  const tapCount = useRef(0);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleLogoTap = () => {
+    if (isAdmin) return;
+    tapCount.current += 1;
+    if (tapTimer.current) clearTimeout(tapTimer.current);
+    if (tapCount.current >= 5) {
+      tapCount.current = 0;
+      setShowAdminModal(true);
+    } else {
+      tapTimer.current = setTimeout(() => { tapCount.current = 0; }, 3000);
+    }
+  };
+
+  // Keyboard shortcut: Ctrl+Shift+A
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "A" && !isAdmin) {
+        setShowAdminModal(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isAdmin]);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* ── Top header ── */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          {/* Logo */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Logo — secret 5-tap triggers admin login */}
+          <div className="flex items-center gap-2 flex-shrink-0 select-none" onClick={handleLogoTap} style={{ cursor: "default" }}>
             <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center">
               <span className="text-primary text-xs font-bold">TN</span>
             </div>
@@ -233,20 +259,16 @@ export default function Layout({ children }: LayoutProps) {
           {/* Right controls */}
           <div className="flex items-center gap-1 flex-shrink-0">
             <GlobalSearch />
-            <div className="w-px h-5 bg-border" />
-            {isAdmin ? (
-              <button onClick={logout} data-testid="button-admin-logout" title="Exit admin mode"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="hidden sm:block">Admin</span>
-              </button>
-            ) : (
-              <button onClick={() => setShowAdminModal(true)} data-testid="button-admin-login" title="Admin login"
-                className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              >
-                <ShieldOff className="w-4 h-4" />
-              </button>
+            {isAdmin && (
+              <>
+                <div className="w-px h-5 bg-border" />
+                <button onClick={logout} data-testid="button-admin-logout" title="Exit admin mode"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="hidden sm:block">Admin</span>
+                </button>
+              </>
             )}
             <div className="w-px h-5 bg-border" />
             <button onClick={toggleTheme} data-testid="button-toggle-theme" title={theme === "light" ? "Dark mode" : "Light mode"}
