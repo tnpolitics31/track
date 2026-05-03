@@ -25,6 +25,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* ── Top header ── */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           {/* Logo */}
@@ -32,11 +33,11 @@ export default function Layout({ children }: LayoutProps) {
             <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center">
               <span className="text-primary text-xs font-bold">TN</span>
             </div>
-            <span className="font-semibold text-sm tracking-wide text-foreground hidden sm:block">TN Politics</span>
+            <span className="font-semibold text-sm tracking-wide text-foreground">TN Politics</span>
           </div>
 
-          {/* Nav */}
-          <nav className="flex items-center gap-0.5 overflow-x-auto">
+          {/* Desktop nav — hidden on mobile */}
+          <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto">
             {NAV_ITEMS.map(({ href, label, icon: Icon, testId }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
               return (
@@ -46,7 +47,7 @@ export default function Layout({ children }: LayoutProps) {
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden md:block">{label}</span>
+                  {label}
                 </Link>
               );
             })}
@@ -79,7 +80,36 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      {/* ── Page content — extra bottom padding on mobile for the nav bar ── */}
+      <main className="flex-1 pb-20 md:pb-0">{children}</main>
+
+      {/* ── Mobile bottom nav — hidden on md+ ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-t border-border">
+        {/* Right-fade hint that nav is scrollable */}
+        <div className="relative">
+          <div className="flex overflow-x-auto scrollbar-none">
+            {NAV_ITEMS.map(({ href, label, icon: Icon, testId }) => {
+              const active = href === "/" ? location === "/" : location.startsWith(href);
+              return (
+                <Link key={href} href={href} data-testid={testId}
+                  className={`relative flex flex-col items-center justify-center gap-1 px-4 py-2.5 min-w-[70px] flex-shrink-0 transition-colors ${
+                    active ? "text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  {/* Active top indicator bar */}
+                  {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />}
+                  <Icon className={`w-5 h-5 transition-transform ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.2 : 1.7} />
+                  <span className={`text-[10px] leading-none whitespace-nowrap ${active ? "font-semibold" : "font-medium"}`}>
+                    {label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          {/* Fade gradient on the right to hint scrollability */}
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card/95 to-transparent" />
+        </div>
+      </nav>
 
       <AdminLoginModal open={showAdminModal} onClose={() => setShowAdminModal(false)} />
     </div>
