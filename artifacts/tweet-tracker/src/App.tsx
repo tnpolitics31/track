@@ -7,6 +7,9 @@ import Layout from "@/components/layout";
 import Tracker from "@/pages/tracker";
 import Gallery from "@/pages/gallery";
 import Attendance from "@/pages/attendance";
+import Dashboard from "@/pages/dashboard";
+import Politicians from "@/pages/politicians";
+import Events from "@/pages/events";
 import { AdminProvider } from "@/contexts/admin";
 import { useState, useEffect, createContext, useContext } from "react";
 
@@ -21,9 +24,12 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Tracker} />
+        <Route path="/" component={Dashboard} />
+        <Route path="/tracker" component={Tracker} />
         <Route path="/gallery" component={Gallery} />
         <Route path="/attendance" component={Attendance} />
+        <Route path="/politicians" component={Politicians} />
+        <Route path="/events" component={Events} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -37,11 +43,8 @@ function App() {
   });
 
   useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    if (theme === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
     localStorage.setItem("theme", theme);
   }, [theme]);
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, pgEnum, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,9 @@ export const tweetsTable = pgTable("tweets", {
   screenshotUrl: text("screenshot_url"),
   tags: text("tags"),
   notes: text("notes"),
+  partyId: integer("party_id"),
+  politicianId: integer("politician_id"),
+  eventId: integer("event_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

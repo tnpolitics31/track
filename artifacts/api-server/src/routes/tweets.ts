@@ -136,6 +136,7 @@ router.post("/", async (req, res) => {
   }
 
   const { url, notes, tags } = parse.data;
+  const { partyId, politicianId, eventId } = req.body as { partyId?: number; politicianId?: number; eventId?: number };
   const normalizedUrl = normalizeTweetUrl(url.trim());
 
   if (isProfileUrl(normalizedUrl)) {
@@ -159,6 +160,19 @@ router.post("/", async (req, res) => {
     captureScreenshot(normalizedUrl),
   ]);
 
+  // Auto-detect politician from handle if not provided
+  let resolvedPoliticianId = politicianId ?? null;
+  let resolvedPartyId = partyId ?? null;
+  if (!resolvedPoliticianId && metadata.authorHandle) {
+    const { politiciansTable } = await import("@workspace/db");
+    const { ilike: ilikeOp } = await import("drizzle-orm");
+    const [matched] = await db.select().from(politiciansTable).where(ilikeOp(politiciansTable.twitterHandle, metadata.authorHandle)).limit(1);
+    if (matched) {
+      resolvedPoliticianId = matched.id;
+      if (!resolvedPartyId && matched.partyId) resolvedPartyId = matched.partyId;
+    }
+  }
+
   const [tweet] = await db
     .insert(tweetsTable)
     .values({
@@ -171,6 +185,9 @@ router.post("/", async (req, res) => {
       screenshotUrl,
       notes: notes ?? null,
       tags: tags ?? null,
+      partyId: resolvedPartyId,
+      politicianId: resolvedPoliticianId,
+      eventId: eventId ?? null,
     })
     .returning();
 
@@ -222,6 +239,21 @@ router.get("/gallery", async (req, res) => {
 // POST /tweets/admin-check — verify admin password (must be before /:id routes)
 router.post("/admin-check", requireAdmin, (_req, res) => {
   return res.json({ ok: true });
+});
+
+// PATCH /tweets/:id/tags — update party/politician/event tags (admin only)
+router.patch("/:id/tags", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid tweet ID" });
+  const { partyId, politicianId, eventId } = req.body as { partyId?: number | null; politicianId?: number | null; eventId?: number | null };
+  const [updated] = await db.update(tweetsTable).set({
+    partyId: partyId ?? null,
+    politicianId: politicianId ?? null,
+    eventId: eventId ?? null,
+    updatedAt: new Date(),
+  }).where(eq(tweetsTable.id, id)).returning();
+  if (!updated) return res.status(404).json({ error: "Tweet not found" });
+  return res.json(updated);
 });
 
 // GET /tweets/:id
