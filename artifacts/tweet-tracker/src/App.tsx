@@ -12,6 +12,7 @@ import Politicians from "@/pages/politicians";
 import Events from "@/pages/events";
 import Issues from "@/pages/issues";
 import IssueDetail from "@/pages/issue-detail";
+import IssuesMatrix from "@/pages/issues-matrix";
 import { AdminProvider } from "@/contexts/admin";
 import { useState, useEffect, createContext, useContext } from "react";
 
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/attendance" component={Attendance} />
         <Route path="/politicians" component={Politicians} />
         <Route path="/events" component={Events} />
+        <Route path="/issues/matrix" component={IssuesMatrix} />
         <Route path="/issues/:id" component={IssueDetail} />
         <Route path="/issues" component={Issues} />
         <Route component={NotFound} />

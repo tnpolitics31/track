@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, Plus, Trash2, Search, X, Filter, MapPin, ExternalLink, Calendar, User, ChevronRight } from "lucide-react";
+import { AlertTriangle, Plus, Trash2, Search, X, MapPin, ExternalLink, Calendar, User, ChevronRight, TableProperties } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -102,9 +102,16 @@ export default function Issues() {
             {issues.length} issue{issues.length !== 1 ? "s" : ""} tracked · anyone can log · admin can delete
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)} className="gap-2">
-          <Plus className="w-4 h-4" /> Log an Issue
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/issues/matrix">
+            <Button variant="outline" className="gap-2">
+              <TableProperties className="w-4 h-4" /> Matrix View
+            </Button>
+          </Link>
+          <Button onClick={() => setShowModal(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> Log an Issue
+          </Button>
+        </div>
       </div>
 
       {/* Category filter */}

@@ -6,6 +6,50 @@ import { requireAdmin } from "../middlewares/adminAuth";
 
 const router = Router();
 
+// GET /issues/matrix — all issues with party responses as columns
+router.get("/matrix", async (_req, res) => {
+  const [issues, parties, allActions] = await Promise.all([
+    db.select().from(issuesTable).orderBy(desc(issuesTable.dateOccurred), desc(issuesTable.createdAt)),
+    db.select().from(partiesTable).orderBy(partiesTable.id),
+    db.select({
+      id: issueActionsTable.id,
+      issueId: issueActionsTable.issueId,
+      partyId: issueActionsTable.partyId,
+      politicianId: issueActionsTable.politicianId,
+      actionType: issueActionsTable.actionType,
+      description: issueActionsTable.description,
+      sourceUrl: issueActionsTable.sourceUrl,
+      partyShortName: partiesTable.shortName,
+      partyColor: partiesTable.color,
+      politicianName: politiciansTable.name,
+    })
+      .from(issueActionsTable)
+      .leftJoin(partiesTable, eq(issueActionsTable.partyId, partiesTable.id))
+      .leftJoin(politiciansTable, eq(issueActionsTable.politicianId, politiciansTable.id)),
+  ]);
+
+  const issuesWithResponses = issues.map((issue) => {
+    const responses: Record<string, { actionType: string; description: string | null; politicianName: string | null; sourceUrl: string | null }[]> = {};
+    for (const party of parties) {
+      responses[party.shortName] = [];
+    }
+    for (const action of allActions) {
+      if (action.issueId === issue.id && action.partyShortName) {
+        if (!responses[action.partyShortName]) responses[action.partyShortName] = [];
+        responses[action.partyShortName].push({
+          actionType: action.actionType,
+          description: action.description,
+          politicianName: action.politicianName,
+          sourceUrl: action.sourceUrl,
+        });
+      }
+    }
+    return { ...issue, responses };
+  });
+
+  return res.json({ parties, issues: issuesWithResponses });
+});
+
 // GET /issues
 router.get("/", async (req, res) => {
   const { category } = req.query;
