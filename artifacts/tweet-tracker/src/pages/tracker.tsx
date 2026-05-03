@@ -11,6 +11,7 @@ import {
 import type { Tweet } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -474,18 +475,33 @@ export default function Tracker() {
           </div>
           {/* Dropdowns + submit row */}
           <div className="grid grid-cols-3 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2">
-            <select value={partyIdInput} onChange={(e) => { setPartyIdInput(e.target.value); setPoliticianIdInput(""); }} className="rounded-md border border-border bg-background text-foreground text-[11px] px-1.5 h-9 w-full" disabled={submitting}>
-              <option value="">Party</option>
-              {parties.map((p) => <option key={p.id} value={p.id}>{p.shortName}</option>)}
-            </select>
-            <select value={politicianIdInput} onChange={(e) => setPoliticianIdInput(e.target.value)} className="rounded-md border border-border bg-background text-foreground text-[11px] px-1.5 h-9 w-full" disabled={submitting}>
-              <option value="">Politician</option>
-              {filteredPoliticians.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select value={eventIdInput} onChange={(e) => setEventIdInput(e.target.value)} className="rounded-md border border-border bg-background text-foreground text-[11px] px-1.5 h-9 w-full" disabled={submitting}>
-              <option value="">Event</option>
-              {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            <Select value={partyIdInput} onValueChange={(v) => { setPartyIdInput(v === "__none" ? "" : v); setPoliticianIdInput(""); }} disabled={submitting}>
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Party" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">All parties</SelectItem>
+                {parties.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.shortName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={politicianIdInput} onValueChange={(v) => setPoliticianIdInput(v === "__none" ? "" : v)} disabled={submitting}>
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Politician" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">All</SelectItem>
+                {filteredPoliticians.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={eventIdInput} onValueChange={(v) => setEventIdInput(v === "__none" ? "" : v)} disabled={submitting}>
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Event" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">No event</SelectItem>
+                {events.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Button
               type="submit"
               disabled={!urlInput.trim() || !!urlError || submitting || preview.data?.isDuplicate === true}
