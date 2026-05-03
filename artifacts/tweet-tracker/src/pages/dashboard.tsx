@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { BarChart2, Users, Calendar, FileText, ExternalLink, TrendingUp, Activity, UserRound, Clock3, PartyPopper } from "lucide-react";
+import { BarChart2, Users, Calendar, FileText, ExternalLink, TrendingUp, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useAdmin } from "@/contexts/admin";
 
 interface PartyStats {
   id: number; name: string; shortName: string; color: string; description: string | null;
@@ -26,14 +27,6 @@ interface ActivityDay { date: string; count: number; }
 interface PartyActivityData {
   parties: { id: number; shortName: string; color: string }[];
   data: Record<string, string | number>[];
-}
-interface UserAnalytics {
-  totalTweets: number;
-  tweetsLast30Days: number;
-  averagePerActiveDay: number;
-  topPartyId: number | null;
-  topPoliticianId: number | null;
-  dailySeries: { day: string; count: number }[];
 }
 
 function getHeatColor(count: number, max: number): string {
@@ -70,13 +63,6 @@ function ActivityHeatmap({ data }: { data: ActivityDay[] }) {
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-        <span>Less</span>
-        {["bg-muted/40", "bg-primary/20", "bg-primary/40", "bg-primary/70", "bg-primary"].map((c, i) => (
-          <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
-        ))}
-        <span>More</span>
-      </div>
     </div>
   );
 }
@@ -103,70 +89,43 @@ function PartyCard({ party }: { party: PartyStats }) {
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
-  return (
-    <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3">
-      <div className="text-primary">{icon}</div>
-      <div>
-        <div className="text-2xl font-bold text-foreground tabular-nums">{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </div>
-    </div>
-  );
-}
-
 export default function Dashboard() {
+  const { isAdmin } = useAdmin();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [partyActivity, setPartyActivity] = useState<PartyActivityData | null>(null);
-  const [analytics, setAnalytics] = useState<UserAnalytics | null>(null);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/dashboard/stats").then((r) => r.json()),
       fetch("/api/dashboard/activity").then((r) => r.json()),
       fetch("/api/dashboard/party-activity").then((r) => r.json()),
-      fetch("/api/dashboard/users").then((r) => r.json()),
     ])
-      .then(([stats, act, pa, ua]) => {
+      .then(([stats, act, pa]) => {
         setData(stats);
         setActivity(act);
         setPartyActivity(pa);
-        setAnalytics(ua);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
   const totalPartyTweets = data?.partyStats.reduce((s, p) => s + p.tweetCount, 0) ?? 0;
-  const topParty = data?.partyStats.find((p) => p.id === analytics?.topPartyId);
-  const topPolitician = data?.topPoliticians.find((p) => p.id === analytics?.topPoliticianId);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <UserRound className="w-4 h-4 text-primary" />User Analytics
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {loading ? [1,2,3,4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />) : (
-            <>
-              <StatCard label="Total tracked tweets" value={analytics?.totalTweets ?? 0} icon={<FileText className="w-5 h-5" />} />
-              <StatCard label="Last 30 days" value={analytics?.tweetsLast30Days ?? 0} icon={<Clock3 className="w-5 h-5" />} />
-              <StatCard label="Avg / active day" value={analytics?.averagePerActiveDay ?? 0} icon={<TrendingUp className="w-5 h-5" />} />
-              <StatCard label="Top activity source" value={topParty?.shortName ?? "—"} icon={<PartyPopper className="w-5 h-5" />} />
-            </>
-          )}
-        </div>
-        {!loading && topPolitician && (
+      {isAdmin && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />Admin Analytics
+          </h2>
           <div className="bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
-            Most tracked politician: <Link href={`/politicians/${topPolitician.id}`} className="text-primary hover:underline">{topPolitician.name}</Link>
+            User analytics are visible only to admins.
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Total Tweets", value: data?.totalTweets ?? 0, icon: <FileText className="w-5 h-5" />, color: "text-blue-500" },
@@ -208,7 +167,6 @@ export default function Dashboard() {
             {data?.partyStats.map((party) => <PartyCard key={party.id} party={party} />)}
           </div>
         )}
-
         {!loading && partyActivity && partyActivity.data.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Weekly tweet volume by party (last 8 weeks)</p>

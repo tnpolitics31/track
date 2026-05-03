@@ -62,11 +62,7 @@ function GlobalSearch() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-        title="Global search"
-      >
+      <button onClick={() => setOpen(true)} className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" title="Global search">
         <Search className="w-4 h-4" />
       </button>
 
@@ -74,46 +70,22 @@ function GlobalSearch() {
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4" onClick={close}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div className="relative w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            {/* Search input */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
               <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search tweets, politicians, issues…"
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                onKeyDown={(e) => e.key === "Escape" && close()}
-              />
-              {query && (
-                <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+              <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tweets, politicians, issues…" className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none" onKeyDown={(e) => e.key === "Escape" && close()} />
+              {query && (<button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>)}
             </div>
-
-            {/* Results */}
             <div className="max-h-[60vh] overflow-y-auto">
-              {loading && (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">Searching…</div>
-              )}
-              {!loading && query.length >= 2 && !hasResults && (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">No results for "{query}"</div>
-              )}
-              {!loading && !query && (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">Type at least 2 characters to search</div>
-              )}
-
+              {loading && <div className="px-4 py-6 text-center text-sm text-muted-foreground">Searching…</div>}
+              {!loading && query.length >= 2 && !hasResults && <div className="px-4 py-6 text-center text-sm text-muted-foreground">No results for "{query}"</div>}
+              {!loading && !query && <div className="px-4 py-6 text-center text-sm text-muted-foreground">Type at least 2 characters to search</div>}
               {!loading && results && (
                 <div className="py-1">
-                  {/* Politicians */}
                   {results.politicians.length > 0 && (
                     <div>
                       <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Politicians</div>
                       {results.politicians.map((p) => (
-                        <button key={p.id} onClick={() => goTo(`/politicians/${p.id}`)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
-                        >
+                        <button key={p.id} onClick={() => goTo(`/politicians/${p.id}`)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left">
                           <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">{p.name}</div>
@@ -128,15 +100,11 @@ function GlobalSearch() {
                       ))}
                     </div>
                   )}
-
-                  {/* Issues */}
                   {results.issues.length > 0 && (
                     <div>
                       <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Issues</div>
                       {results.issues.map((issue) => (
-                        <button key={issue.id} onClick={() => goTo(`/issues/${issue.id}`)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
-                        >
+                        <button key={issue.id} onClick={() => goTo(`/issues/${issue.id}`)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left">
                           <AlertTriangle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">{issue.title}</div>
@@ -146,16 +114,11 @@ function GlobalSearch() {
                       ))}
                     </div>
                   )}
-
-                  {/* Tweets */}
                   {results.tweets.length > 0 && (
                     <div>
                       <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tweets</div>
                       {results.tweets.map((t) => (
-                        <a key={t.id} href={t.url} target="_blank" rel="noreferrer"
-                          className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                          onClick={close}
-                        >
+                        <a key={t.id} href={t.url} target="_blank" rel="noreferrer" className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors" onClick={close}>
                           <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-medium text-foreground">{t.authorName ?? t.authorHandle}</div>
@@ -198,7 +161,6 @@ export default function Layout({ children }: LayoutProps) {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const pendingCount = usePendingCount();
 
-  // Secret logo tap counter (5 taps within 3s)
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleLogoTap = () => {
@@ -213,7 +175,6 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  // Keyboard shortcut: Ctrl+Shift+A
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === "A" && !isAdmin) {
@@ -226,98 +187,30 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* ── Top header ── */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          {/* Logo — secret 5-tap triggers admin login */}
           <div className="flex items-center gap-2 flex-shrink-0 select-none" onClick={handleLogoTap} style={{ cursor: "default" }}>
             <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center">
               <span className="text-primary text-xs font-bold">TN</span>
             </div>
             <span className="font-semibold text-sm tracking-wide text-foreground">tn-politics</span>
           </div>
-
-          {/* Desktop nav — hidden on mobile */}
           <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto">
             {NAV_ITEMS.filter(({ href }) => href !== "/approvals" || isAdmin).map(({ href, label, icon: Icon, testId }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
               const isApprovals = href === "/approvals";
               return (
-                <Link key={href} href={href} data-testid={testId}
-                  className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                    active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
+                <Link key={href} href={href} data-testid={testId} className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}>
                   <Icon className="w-3.5 h-3.5" />{label}
-                  {isApprovals && pendingCount > 0 && (
-                    <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                      {pendingCount}
-                    </span>
-                  )}
+                  {isApprovals && pendingCount > 0 && (<span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{pendingCount}</span>)}
                 </Link>
               );
             })}
           </nav>
-
-          {/* Right controls */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <GlobalSearch />
-            {isAdmin && (
-              <>
-                <div className="w-px h-5 bg-border" />
-                <button onClick={logout} data-testid="button-admin-logout" title="Exit admin mode"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span className="hidden sm:block">Admin</span>
-                </button>
-              </>
-            )}
-            <div className="w-px h-5 bg-border" />
-            <button onClick={toggleTheme} data-testid="button-toggle-theme" title={theme === "light" ? "Dark mode" : "Light mode"}
-              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-            </button>
-          </div>
         </div>
       </header>
-
-      {/* ── Page content ── */}
-      <main className="flex-1 pb-20 md:pb-0">{children}</main>
-
-      {/* ── Mobile bottom nav ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-t border-border">
-        <div className="relative">
-          <div className="flex overflow-x-auto scrollbar-none">
-            {NAV_ITEMS.filter(({ href }) => href !== "/approvals" || isAdmin).map(({ href, label, icon: Icon, testId }) => {
-              const active = href === "/" ? location === "/" : location.startsWith(href);
-              const isApprovals = href === "/approvals";
-              return (
-                <Link key={href} href={href} data-testid={testId}
-                  className={`relative flex flex-col items-center justify-center gap-1 px-4 py-2.5 min-w-[70px] flex-shrink-0 transition-colors ${
-                    active ? "text-primary" : "text-muted-foreground"
-                  }`}
-                >
-                  {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />}
-                  <div className="relative">
-                    <Icon className={`w-5 h-5 transition-transform ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.2 : 1.7} />
-                    {isApprovals && pendingCount > 0 && (
-                      <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
-                        {pendingCount}
-                      </span>
-                    )}
-                  </div>
-                  <span className={`text-[10px] leading-none whitespace-nowrap ${active ? "font-semibold" : "font-medium"}`}>{label}</span>
-                </Link>
-              );
-            })}
-          </div>
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card/95 to-transparent" />
-        </div>
-      </nav>
-
-      <AdminLoginModal open={showAdminModal} onClose={() => setShowAdminModal(false)} />
+      {showAdminModal && <AdminLoginModal open={showAdminModal} onClose={() => setShowAdminModal(false)} />}
+      <main className="flex-1">{children}</main>
     </div>
   );
 }

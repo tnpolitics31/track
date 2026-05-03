@@ -145,31 +145,8 @@ router.get("/party-activity", async (_req, res) => {
   return res.json({ parties: parties.map((p) => ({ id: p.id, shortName: p.shortName, color: p.color })), data });
 });
 
-router.get("/users", async (_req, res) => {
-  const since = new Date();
-  since.setDate(since.getDate() - 30);
-  const sinceStr = since.toISOString().slice(0, 10);
-
-  const [totalTweets, recentTweets, partyRows, politicianRows, weeklyRows] = await Promise.all([
-    db.select({ count: count() }).from(tweetsTable),
-    db.select({ count: count() }).from(tweetsTable).where(gte(tweetsTable.createdAt, sinceStr)),
-    db.select({ partyId: tweetsTable.partyId, count: count() }).from(tweetsTable).where(sql`${tweetsTable.partyId} is not null`).groupBy(tweetsTable.partyId),
-    db.select({ politicianId: tweetsTable.politicianId, count: count() }).from(tweetsTable).where(sql`${tweetsTable.politicianId} is not null`).groupBy(tweetsTable.politicianId),
-    db.select({ day: sql<string>`date(${tweetsTable.createdAt})`.as("day"), count: count() }).from(tweetsTable).where(gte(tweetsTable.createdAt, sinceStr)).groupBy(sql`date(${tweetsTable.createdAt})`).orderBy(sql`date(${tweetsTable.createdAt})`),
-  ]);
-
-  const topPartyRow = partyRows.sort((a, b) => Number(b.count) - Number(a.count))[0] ?? null;
-  const topPoliticianRow = politicianRows.sort((a, b) => Number(b.count) - Number(a.count))[0] ?? null;
-  const weeklyAvg = weeklyRows.length ? Math.round(weeklyRows.reduce((sum, r) => sum + Number(r.count), 0) / weeklyRows.length) : 0;
-
-  return res.json({
-    totalTweets: totalTweets[0]?.count ?? 0,
-    tweetsLast30Days: recentTweets[0]?.count ?? 0,
-    averagePerActiveDay: weeklyAvg,
-    topPartyId: topPartyRow?.partyId ?? null,
-    topPoliticianId: topPoliticianRow?.politicianId ?? null,
-    dailySeries: weeklyRows,
-  });
+router.get("/users", (_req, res) => {
+  return res.status(403).json({ error: "Admin only" });
 });
 
 export default router;
