@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { tweetsTable, politiciansTable, partiesTable } from "@workspace/db";
+import { tweetsTable, politiciansTable, partiesTable, pendingTweetsTable } from "@workspace/db";
 import { eq, like } from "drizzle-orm";
 
 const router = Router();
@@ -205,6 +205,140 @@ router.post("/all", async (req, res) => {
   }
 
   return res.json({ results, totalAdded, totalSkipped });
+});
+
+// POST /sync/mentions — poll bot account mentions, queue parent tweets for approval
+router.post("/mentions", async (req, res) => {
+  req;
+  let credentials: { authToken: string; ct0?: string };
+  try {
+    credentials = getScraperClient();
+  } catch (e: unknown) {
+    return res.status(503).json({ error: (e as Error).message });
+  }
+
+  const { Scraper } = await import("@the-convocation/twitter-scraper");
+  const scraper = new Scraper();
+
+  const cookieStrings = [
+    `auth_token=${credentials.authToken}; domain=.twitter.com; path=/`,
+    `auth_token=${credentials.authToken}; domain=.x.com; path=/`,
+  ];
+  if (credentials.ct0) {
+    cookieStrings.push(`ct0=${credentials.ct0}; domain=.twitter.com; path=/`);
+    cookieStrings.push(`ct0=${credentials.ct0}; domain=.x.com; path=/`);
+  }
+  await scraper.setCookies(cookieStrings);
+
+  let queued = 0;
+  let skipped = 0;
+
+  try {
+    // Fetch recent mentions/notifications — scrape the bot account's mentions timeline
+    // getTweets on the authenticated account's @mentions is done via search
+    const profile = await scraper.getProfile(await scraper.getScreenName?.() ?? "");
+    const botHandle = profile?.username ?? "";
+
+    if (!botHandle) {
+      return res.status(503).json({ error: "Could not resolve bot account handle" });
+    }
+
+    // Search for recent tweets mentioning the bot handle
+    const searchQuery = `@${botHandle} -from:${botHandle}`;
+    const mentionIterator = scraper.searchTweets(searchQuery, 50);
+
+    for await (const mention of mentionIterator) {
+      if (!mention.id) continue;
+
+      // We want the tweet this mention is replying to (the parent)
+      const inReplyToId = mention.inReplyToStatusId;
+      if (!inReplyToId) continue;
+
+      // Check if we've already queued this mention
+      const alreadyQueued = await db
+        .select({ id: pendingTweetsTable.id })
+        .from(pendingTweetsTable)
+        .where(eq(pendingTweetsTable.mentionTweetId, mention.id))
+        .limit(1);
+      if (alreadyQueued.length > 0) { skipped++; continue; }
+
+      // Fetch the parent tweet
+      try {
+        const parent = await scraper.getTweet(inReplyToId);
+        if (!parent || !parent.permanentUrl) { skipped++; continue; }
+
+        const parentUrl = normalizeTweetUrl(parent.permanentUrl.replace("twitter.com", "x.com"));
+        const parentTweetId = extractTweetId(parentUrl);
+        if (!parentTweetId) { skipped++; continue; }
+
+        // Skip if already in main tweets table
+        const alreadyTracked = await db
+          .select({ id: tweetsTable.id })
+          .from(tweetsTable)
+          .where(eq(tweetsTable.url, parentUrl))
+          .limit(1);
+
+        // Skip if already pending
+        const alreadyPending = await db
+          .select({ id: pendingTweetsTable.id })
+          .from(pendingTweetsTable)
+          .where(eq(pendingTweetsTable.url, parentUrl))
+          .limit(1);
+
+        if (alreadyTracked.length > 0 || alreadyPending.length > 0) { skipped++; continue; }
+
+        const hasPhotos = Array.isArray(parent.photos) && parent.photos.length > 0;
+        const hasVideos = Array.isArray(parent.videos) && parent.videos.length > 0;
+        let type: "text" | "image" | "mixed" = "text";
+        if (hasPhotos && hasVideos) type = "mixed";
+        else if (hasVideos) type = "mixed";
+        else if (hasPhotos) type = "image";
+
+        const content = parent.text ?? null;
+        const sentiment = content ? detectSentiment(content) : "neutral";
+        const createdAt = parent.timeParsed ? parent.timeParsed.toISOString() : new Date().toISOString();
+
+        // Try to match politician/party from author handle
+        let politicianId: number | null = null;
+        let partyId: number | null = null;
+        if (parent.username) {
+          const [matched] = await db
+            .select({ id: politiciansTable.id, partyId: politiciansTable.partyId })
+            .from(politiciansTable)
+            .where(like(politiciansTable.twitterHandle, parent.username))
+            .limit(1);
+          if (matched) {
+            politicianId = matched.id;
+            partyId = matched.partyId;
+          }
+        }
+
+        await db.insert(pendingTweetsTable).values({
+          url: parentUrl,
+          tweetId: parentTweetId,
+          authorHandle: parent.username ?? null,
+          authorName: parent.name ?? null,
+          content,
+          type,
+          sentiment,
+          submittedByHandle: mention.username ?? null,
+          mentionTweetId: mention.id,
+          partyId,
+          politicianId,
+          status: "pending",
+          createdAt,
+        }).onConflictDoNothing();
+
+        queued++;
+      } catch {
+        skipped++;
+      }
+    }
+  } catch (e: unknown) {
+    return res.status(502).json({ error: `Failed to poll mentions: ${(e as Error).message}` });
+  }
+
+  return res.json({ queued, skipped });
 });
 
 // GET /sync/politicians — list politicians with a twitter handle (for UI dropdown)

@@ -9,6 +9,7 @@ import dashboardRouter from "./dashboard";
 import issuesRouter from "./issues";
 import syncRouter from "./sync";
 import searchRouter from "./search";
+import pendingRouter from "./pending";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/dashboard", dashboardRouter);
 router.use("/issues", issuesRouter);
 router.use("/sync", syncRouter);
 router.use("/search", searchRouter);
+router.use("/pending", pendingRouter);
 
 export default router;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ShieldOff, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User } from "lucide-react";
+import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ShieldOff, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox } from "lucide-react";
 import { useTheme } from "@/App";
 import { useAdmin } from "@/contexts/admin";
 import AdminLoginModal from "@/components/admin-login-modal";
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/events", label: "Events", icon: Calendar, testId: "nav-events" },
   { href: "/gallery", label: "Gallery", icon: Images, testId: "nav-gallery" },
   { href: "/attendance", label: "Attendance", icon: ClipboardList, testId: "nav-attendance" },
+  { href: "/approvals", label: "Approvals", icon: Inbox, testId: "nav-approvals" },
 ];
 
 interface SearchResult {
@@ -176,11 +177,23 @@ function GlobalSearch() {
   );
 }
 
+function usePendingCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const fetch_ = () => fetch("/api/pending/count").then((r) => r.json()).then((d) => setCount(d.count ?? 0)).catch(() => {});
+    fetch_();
+    const id = setInterval(fetch_, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return count;
+}
+
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { isAdmin, logout } = useAdmin();
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const pendingCount = usePendingCount();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -199,13 +212,19 @@ export default function Layout({ children }: LayoutProps) {
           <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto">
             {NAV_ITEMS.map(({ href, label, icon: Icon, testId }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
+              const isApprovals = href === "/approvals";
               return (
                 <Link key={href} href={href} data-testid={testId}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                  className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                     active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />{label}
+                  {isApprovals && pendingCount > 0 && (
+                    <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -248,6 +267,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex overflow-x-auto scrollbar-none">
             {NAV_ITEMS.map(({ href, label, icon: Icon, testId }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
+              const isApprovals = href === "/approvals";
               return (
                 <Link key={href} href={href} data-testid={testId}
                   className={`relative flex flex-col items-center justify-center gap-1 px-4 py-2.5 min-w-[70px] flex-shrink-0 transition-colors ${
@@ -255,7 +275,14 @@ export default function Layout({ children }: LayoutProps) {
                   }`}
                 >
                   {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />}
-                  <Icon className={`w-5 h-5 transition-transform ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.2 : 1.7} />
+                  <div className="relative">
+                    <Icon className={`w-5 h-5 transition-transform ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.2 : 1.7} />
+                    {isApprovals && pendingCount > 0 && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-[10px] leading-none whitespace-nowrap ${active ? "font-semibold" : "font-medium"}`}>{label}</span>
                 </Link>
               );

@@ -1,0 +1,259 @@
+import { useState, useEffect, useCallback } from "react";
+import { CheckCircle2, XCircle, Trash2, RefreshCw, Clock, ExternalLink, AlertTriangle, CheckCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useAdmin } from "@/contexts/admin";
+
+interface PendingTweet {
+  id: number;
+  url: string;
+  tweetId: string;
+  authorHandle: string | null;
+  authorName: string | null;
+  content: string | null;
+  type: string;
+  sentiment: string | null;
+  submittedByHandle: string | null;
+  partyId: number | null;
+  politicianId: number | null;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+function getAdminHeaders(): Record<string, string> {
+  const pw = sessionStorage.getItem("admin_password");
+  return pw ? { "x-admin-password": pw, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+
+function SentimentBadge({ sentiment }: { sentiment: string | null }) {
+  const map: Record<string, { label: string; className: string }> = {
+    attack: { label: "Attack", className: "bg-red-500/15 text-red-500" },
+    negative: { label: "Negative", className: "bg-orange-500/15 text-orange-500" },
+    promise: { label: "Promise", className: "bg-blue-500/15 text-blue-500" },
+    positive: { label: "Positive", className: "bg-emerald-500/15 text-emerald-500" },
+    neutral: { label: "Neutral", className: "bg-muted text-muted-foreground" },
+  };
+  if (!sentiment) return null;
+  const s = map[sentiment] ?? map.neutral;
+  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${s.className}`}>{s.label}</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "approved") return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500">Approved</span>;
+  if (status === "rejected") return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/15 text-red-500">Rejected</span>;
+  return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Pending</span>;
+}
+
+export default function Approvals() {
+  const [tweets, setTweets] = useState<PendingTweet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [polling, setPolling] = useState(false);
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [actioning, setActioning] = useState<Record<number, boolean>>({});
+  const { toast } = useToast();
+  const { isAdmin } = useAdmin();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/pending");
+      const d = await r.json();
+      setTweets(d);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const pollMentions = async () => {
+    setPolling(true);
+    try {
+      const r = await fetch("/api/sync/mentions", { method: "POST", headers: getAdminHeaders() });
+      const d = await r.json() as { queued: number; skipped: number; error?: string };
+      if (!r.ok) throw new Error(d.error ?? "Poll failed");
+      toast({ title: `Mentions polled: ${d.queued} new submission${d.queued !== 1 ? "s" : ""} queued` });
+      await load();
+    } catch (e: unknown) {
+      toast({ title: "Poll failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setPolling(false);
+    }
+  };
+
+  const action = async (id: number, endpoint: string, label: string) => {
+    setActioning((p) => ({ ...p, [id]: true }));
+    try {
+      const r = await fetch(`/api/pending/${id}/${endpoint}`, { method: "POST", headers: getAdminHeaders() });
+      if (!r.ok) throw new Error("Failed");
+      toast({ title: label });
+      await load();
+    } catch {
+      toast({ title: "Action failed", variant: "destructive" });
+    } finally {
+      setActioning((p) => ({ ...p, [id]: false }));
+    }
+  };
+
+  const remove = async (id: number) => {
+    setActioning((p) => ({ ...p, [id]: true }));
+    try {
+      const r = await fetch(`/api/pending/${id}`, { method: "DELETE", headers: getAdminHeaders() });
+      if (!r.ok) throw new Error("Failed");
+      toast({ title: "Deleted" });
+      await load();
+    } catch {
+      toast({ title: "Delete failed", variant: "destructive" });
+    } finally {
+      setActioning((p) => ({ ...p, [id]: false }));
+    }
+  };
+
+  const filtered = filter === "all" ? tweets : tweets.filter((t) => t.status === filter);
+  const pendingCount = tweets.filter((t) => t.status === "pending").length;
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <Clock className="w-5 h-5 text-primary" />
+            Community Submissions
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Tweets submitted when users tag the bot account in a reply
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={pollMentions} disabled={polling || !isAdmin} className="gap-1.5 shrink-0">
+          <RefreshCw className={`w-3.5 h-3.5 ${polling ? "animate-spin" : ""}`} />
+          Poll Mentions
+        </Button>
+      </div>
+
+      {!isAdmin && (
+        <div className="flex items-center gap-2 text-sm bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2.5 text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          Log in as admin to approve or reject submissions and poll for new mentions.
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {(["pending", "approved", "rejected", "all"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
+              filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {f === "pending" && pendingCount > 0 ? `Pending (${pendingCount})` : f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+        <div className="ml-auto">
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={load} title="Refresh">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-28 rounded-xl bg-muted/40 animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <CheckCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No {filter === "all" ? "" : filter} submissions</p>
+          {filter === "pending" && (
+            <p className="text-xs mt-1 opacity-70">When someone tags the bot in a reply, the parent tweet will appear here</p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((tweet) => (
+            <div key={tweet.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
+              {/* Top row */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-semibold text-foreground">{tweet.authorName ?? tweet.authorHandle ?? "Unknown"}</span>
+                    {tweet.authorHandle && <span className="text-xs text-muted-foreground">@{tweet.authorHandle}</span>}
+                    <SentimentBadge sentiment={tweet.sentiment} />
+                    <StatusBadge status={tweet.status} />
+                  </div>
+                  {tweet.submittedByHandle && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Submitted by <span className="font-medium">@{tweet.submittedByHandle}</span>
+                    </p>
+                  )}
+                </div>
+                <a
+                  href={tweet.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  title="View tweet"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+
+              {/* Content */}
+              {tweet.content && (
+                <p className="text-sm text-foreground leading-relaxed line-clamp-4 bg-muted/30 rounded-lg px-3 py-2">
+                  {tweet.content}
+                </p>
+              )}
+
+              {/* Meta */}
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="capitalize bg-muted px-1.5 py-0.5 rounded">{tweet.type}</span>
+                <span>{new Date(tweet.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+              </div>
+
+              {/* Actions — admin only, pending only */}
+              {isAdmin && tweet.status === "pending" && (
+                <div className="flex items-center gap-2 pt-1 border-t border-border">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => action(tweet.id, "approve", "Tweet approved and added to tracker")}
+                    disabled={actioning[tweet.id]}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={() => action(tweet.id, "reject", "Submission rejected")}
+                    disabled={actioning[tweet.id]}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-destructive"
+                    onClick={() => remove(tweet.id)}
+                    disabled={actioning[tweet.id]}
+                    title="Delete permanently"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
