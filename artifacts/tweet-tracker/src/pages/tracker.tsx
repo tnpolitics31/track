@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTweets,
@@ -16,7 +16,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin, getAdminHeaders } from "@/contexts/admin";
-import { Clipboard, RefreshCw, Trash2, ExternalLink, FileText, Image, LayoutGrid, HelpCircle, Search, X, Database, Download } from "lucide-react";
+import { Clipboard, RefreshCw, Trash2, ExternalLink, FileText, Image, LayoutGrid, HelpCircle, Search, X, Database, Download, Loader2, AlertTriangle, CheckCircle2, User } from "lucide-react";
+
+interface TweetPreview {
+  tweetId: string;
+  authorHandle: string | null;
+  authorName: string | null;
+  content: string | null;
+  isDuplicate: boolean;
+  existingId: number | null;
+  detectedPoliticianId: number | null;
+  detectedPoliticianName: string | null;
+  detectedPartyId: number | null;
+  detectedPartyShortName: string | null;
+}
 
 interface Party { id: number; name: string; shortName: string; color: string; }
 interface Politician { id: number; name: string; partyId: number | null; twitterHandle: string | null; }
@@ -212,6 +225,12 @@ export default function Tracker() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [preview, setPreview] = useState<{ loading: boolean; data: TweetPreview | null; error: string | null }>({
+    loading: false, data: null, error: null,
+  });
+  const previewAbortRef = useRef<AbortController | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [parties, setParties] = useState<Party[]>([]);
   const [politicians, setPoliticians] = useState<Politician[]>([]);
   const [events, setEvents] = useState<PoliticalEvent[]>([]);
@@ -224,6 +243,47 @@ export default function Tracker() {
     Promise.all([fetch("/api/parties").then((r) => r.json()), fetch("/api/politicians").then((r) => r.json()), fetch("/api/events").then((r) => r.json())])
       .then(([p, pol, ev]) => { setParties(p); setPoliticians(pol); setEvents(ev); });
   }, []);
+
+  // Debounced preview fetch when URL input changes
+  useEffect(() => {
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    if (previewAbortRef.current) previewAbortRef.current.abort();
+
+    const trimmed = urlInput.trim();
+    const isTweet = /(?:twitter\.com|x\.com)\/[^/]+\/status\/\d+/.test(trimmed);
+
+    if (!trimmed || !isTweet) {
+      setPreview({ loading: false, data: null, error: null });
+      return;
+    }
+
+    setPreview({ loading: true, data: null, error: null });
+
+    previewTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      previewAbortRef.current = controller;
+      try {
+        const res = await fetch(`/api/tweets/preview?url=${encodeURIComponent(trimmed)}`, { signal: controller.signal });
+        const data = await res.json();
+        if (!res.ok) {
+          setPreview({ loading: false, data: null, error: data.error ?? "Could not read tweet" });
+          return;
+        }
+        setPreview({ loading: false, data: data as TweetPreview, error: null });
+        // Auto-fill party/politician dropdowns if not already set
+        if (data.detectedPartyId && !partyIdInput) setPartyIdInput(String(data.detectedPartyId));
+        if (data.detectedPoliticianId && !politicianIdInput) setPoliticianIdInput(String(data.detectedPoliticianId));
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setPreview({ loading: false, data: null, error: "Could not read tweet" });
+      }
+    }, 600);
+
+    return () => {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlInput]);
 
   const params = {
     ...(filterType ? { type: filterType as "text" | "image" | "mixed" } : {}),
@@ -257,9 +317,16 @@ export default function Tracker() {
     return null;
   })();
 
+  const clearForm = () => {
+    setUrlInput(""); setNotesInput(""); setTagsInput("");
+    setPartyIdInput(""); setPoliticianIdInput(""); setEventIdInput("");
+    setPreview({ loading: false, data: null, error: null });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!urlInput.trim() || urlError || submitting) return;
+    if (preview.data?.isDuplicate) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/tweets", {
@@ -276,7 +343,7 @@ export default function Tracker() {
       });
       const data = await res.json();
       if (!res.ok) { toast({ title: "Error", description: data.error ?? "Failed to track tweet.", variant: "destructive" }); return; }
-      setUrlInput(""); setNotesInput(""); setTagsInput(""); setPartyIdInput(""); setPoliticianIdInput(""); setEventIdInput("");
+      clearForm();
       refreshList();
       toast({ title: "Tweet tracked", description: "Successfully analyzed and screenshotted." });
     } finally { setSubmitting(false); }
@@ -317,19 +384,90 @@ export default function Tracker() {
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <h2 className="text-sm font-semibold text-foreground">Track a Tweet</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
+          {/* URL row */}
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Input
                 value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
                 placeholder="Paste a Twitter / X tweet URL..."
-                className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${urlError ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
+                className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${urlError ? "border-destructive focus-visible:ring-destructive/30" : preview.data && !preview.data.isDuplicate ? "border-emerald-500/50" : ""}`}
                 disabled={submitting}
               />
-              {urlInput && <button type="button" onClick={() => setUrlInput("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>}
+              {preview.loading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
+              {urlInput && !preview.loading && <button type="button" onClick={clearForm} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>}
               {urlError && <p className="absolute left-0 -bottom-5 text-xs text-destructive">{urlError}</p>}
             </div>
             <Button type="button" variant="outline" size="icon" onClick={handlePaste} title="Paste from clipboard" disabled={submitting}><Clipboard className="w-4 h-4" /></Button>
           </div>
+
+          {/* Live preview card */}
+          {(preview.loading || preview.data || preview.error) && (
+            <div className={`rounded-lg border p-3 text-sm transition-all ${
+              preview.loading ? "border-border bg-muted/20" :
+              preview.data?.isDuplicate ? "border-amber-500/40 bg-amber-500/5" :
+              preview.error ? "border-destructive/40 bg-destructive/5" :
+              "border-emerald-500/40 bg-emerald-500/5"
+            }`}>
+              {preview.loading && (
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Reading tweet…
+                </div>
+              )}
+              {preview.error && (
+                <div className="flex items-center gap-2 text-destructive text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {preview.error}
+                </div>
+              )}
+              {preview.data && (
+                <div className="space-y-2">
+                  {/* Duplicate warning */}
+                  {preview.data.isDuplicate && (
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      Already tracked — this tweet is in the database.
+                    </div>
+                  )}
+                  {!preview.data.isDuplicate && (
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                      Tweet found · ready to track
+                      {preview.data.detectedPoliticianName && (
+                        <span className="text-muted-foreground font-normal ml-1">
+                          · auto-detected: <strong>{preview.data.detectedPoliticianName}</strong>
+                          {preview.data.detectedPartyShortName && ` (${preview.data.detectedPartyShortName})`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* Author + content */}
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0 mt-0.5">
+                      {preview.data.authorName ? preview.data.authorName[0]?.toUpperCase() : <User className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-foreground">{preview.data.authorName ?? "Unknown"}</span>
+                        {preview.data.authorHandle && <span className="text-xs text-muted-foreground">@{preview.data.authorHandle}</span>}
+                        {preview.data.detectedPartyShortName && (() => {
+                          const party = parties.find((p) => p.shortName === preview.data!.detectedPartyShortName);
+                          return party ? (
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${party.color}20`, color: party.color }}>{party.shortName}</span>
+                          ) : null;
+                        })()}
+                      </div>
+                      {preview.data.content && (
+                        <p className="text-xs text-foreground/80 mt-1 leading-relaxed line-clamp-3 whitespace-pre-wrap">{preview.data.content}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tags / metadata row */}
           <div className={`grid gap-2 ${urlError ? "mt-6" : ""}`} style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr auto" }}>
             <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags (comma-sep)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs" disabled={submitting} />
             <Input value={notesInput} onChange={(e) => setNotesInput(e.target.value)} placeholder="Notes (optional)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs" disabled={submitting} />
@@ -345,11 +483,15 @@ export default function Tracker() {
               <option value="">Event</option>
               {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
-            <Button type="submit" disabled={!urlInput.trim() || !!urlError || submitting} className="whitespace-nowrap">
+            <Button
+              type="submit"
+              disabled={!urlInput.trim() || !!urlError || submitting || preview.data?.isDuplicate === true}
+              className="whitespace-nowrap"
+            >
               {submitting ? <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" />Analyzing...</span> : "Track Tweet"}
             </Button>
           </div>
-          {submitting && <p className="text-xs text-muted-foreground animate-pulse">Detecting tweet type and capturing screenshot — this takes 10-15 seconds...</p>}
+          {submitting && <p className="text-xs text-muted-foreground animate-pulse">Detecting tweet type and capturing screenshot — this takes 10-15 seconds…</p>}
         </form>
       </div>
 

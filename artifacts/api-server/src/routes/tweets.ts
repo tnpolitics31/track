@@ -194,6 +194,71 @@ router.post("/", async (req, res) => {
   return res.status(201).json(tweet);
 });
 
+// GET /tweets/preview — fetch tweet metadata without saving (for live preview before submit)
+router.get("/preview", async (req, res) => {
+  const url = String(req.query.url ?? "").trim();
+  if (!url) return res.status(400).json({ error: "url is required" });
+
+  const normalizedUrl = normalizeTweetUrl(url);
+  if (isProfileUrl(normalizedUrl)) return res.status(400).json({ error: "Profile URL, not a tweet" });
+
+  const tweetId = extractTweetId(normalizedUrl);
+  if (!tweetId) return res.status(400).json({ error: "Not a valid tweet URL" });
+
+  // Check duplicate first (fast DB query)
+  const existing = await db.select({ id: tweetsTable.id }).from(tweetsTable)
+    .where(eq(tweetsTable.url, normalizedUrl)).limit(1);
+  const isDuplicate = existing.length > 0;
+  const existingId = existing[0]?.id ?? null;
+
+  // Fetch oEmbed only (fast, no screenshot/microlink)
+  let authorHandle: string | null = null;
+  let authorName: string | null = null;
+  let content: string | null = null;
+  try {
+    const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(normalizedUrl)}&omit_script=true`;
+    const oRes = await fetch(oembedUrl, { signal: AbortSignal.timeout(8000) });
+    if (oRes.ok) {
+      const data = await oRes.json() as { author_name?: string; author_url?: string; html?: string };
+      authorName = data.author_name ?? null;
+      const handleMatch = (data.author_url ?? "").match(/(?:twitter|x)\.com\/([^/]+)$/);
+      authorHandle = handleMatch ? handleMatch[1] : null;
+      content = (data.html ?? "")
+        .replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+    }
+  } catch { /* oEmbed failed — return what we have */ }
+
+  // Auto-detect politician from handle
+  let detectedPoliticianId: number | null = null;
+  let detectedPoliticianName: string | null = null;
+  let detectedPartyId: number | null = null;
+  let detectedPartyShortName: string | null = null;
+  if (authorHandle) {
+    const { politiciansTable, partiesTable } = await import("@workspace/db");
+    const [matched] = await db.select().from(politiciansTable)
+      .where(eq(politiciansTable.twitterHandle, authorHandle)).limit(1);
+    if (matched) {
+      detectedPoliticianId = matched.id;
+      detectedPoliticianName = matched.name;
+      if (matched.partyId) {
+        detectedPartyId = matched.partyId;
+        const [party] = await db.select().from(partiesTable)
+          .where(eq(partiesTable.id, matched.partyId)).limit(1);
+        detectedPartyShortName = party?.shortName ?? null;
+      }
+    }
+  }
+
+  return res.json({
+    tweetId, authorHandle, authorName, content,
+    isDuplicate, existingId,
+    detectedPoliticianId, detectedPoliticianName,
+    detectedPartyId, detectedPartyShortName,
+  });
+});
+
 // GET /tweets/stats
 router.get("/stats", async (req, res) => {
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
