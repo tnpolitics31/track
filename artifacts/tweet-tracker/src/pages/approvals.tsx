@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, XCircle, Trash2, RefreshCw, Clock, ExternalLink, AlertTriangle, CheckCheck } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, RefreshCw, Clock, ExternalLink, AlertTriangle, CheckCheck, Square, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/contexts/admin";
@@ -50,6 +50,8 @@ export default function Approvals() {
   const [polling, setPolling] = useState(false);
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [actioning, setActioning] = useState<Record<number, boolean>>({});
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkActioning, setBulkActioning] = useState(false);
   const { toast } = useToast();
   const { isAdmin } = useAdmin();
 
@@ -59,12 +61,36 @@ export default function Approvals() {
       const r = await fetch("/api/pending");
       const d = await r.json();
       setTweets(d);
+      setSelected(new Set());
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const filtered = filter === "all" ? tweets : tweets.filter((t) => t.status === filter);
+  const pendingCount = tweets.filter((t) => t.status === "pending").length;
+  const pendingFiltered = filtered.filter((t) => t.status === "pending");
+
+  const allSelected = pendingFiltered.length > 0 && pendingFiltered.every((t) => selected.has(t.id));
+  const someSelected = selected.size > 0;
+
+  const toggleSelect = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(pendingFiltered.map((t) => t.id)));
+    }
+  };
 
   const pollMentions = async () => {
     setPolling(true);
@@ -109,8 +135,27 @@ export default function Approvals() {
     }
   };
 
-  const filtered = filter === "all" ? tweets : tweets.filter((t) => t.status === filter);
-  const pendingCount = tweets.filter((t) => t.status === "pending").length;
+  const bulkAction = async (actionType: "approve" | "reject" | "delete", ids?: number[]) => {
+    const targetIds = ids ?? Array.from(selected);
+    if (targetIds.length === 0) return;
+    setBulkActioning(true);
+    try {
+      const r = await fetch("/api/pending/bulk", {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ ids: targetIds, action: actionType }),
+      });
+      const d = await r.json() as { ok: boolean; done: number };
+      if (!r.ok) throw new Error("Bulk action failed");
+      const label = actionType === "approve" ? "approved" : actionType === "reject" ? "rejected" : "deleted";
+      toast({ title: `${d.done} submission${d.done !== 1 ? "s" : ""} ${label}` });
+      await load();
+    } catch (e: unknown) {
+      toast({ title: "Bulk action failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBulkActioning(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
@@ -143,7 +188,7 @@ export default function Approvals() {
         {(["pending", "approved", "rejected", "all"] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => { setFilter(f); setSelected(new Set()); }}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
               filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
@@ -157,6 +202,86 @@ export default function Approvals() {
           </Button>
         </div>
       </div>
+
+      {/* Bulk action toolbar — shown when there are pending items */}
+      {isAdmin && !loading && pendingFiltered.length > 0 && (
+        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-xl px-3 py-2.5 flex-wrap">
+          {/* Select all toggle */}
+          <button
+            onClick={selectAll}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            {allSelected
+              ? <CheckSquare className="w-4 h-4 text-primary" />
+              : <Square className="w-4 h-4" />}
+            {allSelected ? "Deselect all" : `Select all (${pendingFiltered.length})`}
+          </button>
+
+          <div className="w-px h-4 bg-border" />
+
+          {/* Approve All */}
+          <Button
+            size="sm"
+            className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={() => bulkAction("approve", pendingFiltered.map((t) => t.id))}
+            disabled={bulkActioning}
+            title="Approve all pending"
+          >
+            <CheckCheck className="w-3.5 h-3.5" />
+            Approve All
+          </Button>
+
+          {/* Reject All */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+            onClick={() => bulkAction("reject", pendingFiltered.map((t) => t.id))}
+            disabled={bulkActioning}
+            title="Reject all pending"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            Reject All
+          </Button>
+
+          {/* Selected actions — only shown when something is selected */}
+          {someSelected && (
+            <>
+              <div className="w-px h-4 bg-border" />
+              <span className="text-xs text-muted-foreground shrink-0">{selected.size} selected</span>
+              <Button
+                size="sm"
+                className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => bulkAction("approve")}
+                disabled={bulkActioning}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => bulkAction("reject")}
+                disabled={bulkActioning}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Reject
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs gap-1 text-muted-foreground hover:text-destructive"
+                onClick={() => bulkAction("delete")}
+                disabled={bulkActioning}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* List */}
       {loading ? (
@@ -175,83 +300,105 @@ export default function Approvals() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((tweet) => (
-            <div key={tweet.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
-              {/* Top row */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-semibold text-foreground">{tweet.authorName ?? tweet.authorHandle ?? "Unknown"}</span>
-                    {tweet.authorHandle && <span className="text-xs text-muted-foreground">@{tweet.authorHandle}</span>}
-                    <SentimentBadge sentiment={tweet.sentiment} />
-                    <StatusBadge status={tweet.status} />
-                  </div>
-                  {tweet.submittedByHandle && (
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Submitted by <span className="font-medium">@{tweet.submittedByHandle}</span>
-                    </p>
+          {filtered.map((tweet) => {
+            const isPending = tweet.status === "pending";
+            const isSelected = selected.has(tweet.id);
+            return (
+              <div
+                key={tweet.id}
+                className={`bg-card border rounded-xl p-4 space-y-3 transition-colors ${
+                  isSelected ? "border-primary/50 bg-primary/5" : "border-border"
+                }`}
+              >
+                {/* Top row */}
+                <div className="flex items-start gap-2">
+                  {/* Checkbox — only for pending items in admin mode */}
+                  {isAdmin && isPending && (
+                    <button
+                      onClick={() => toggleSelect(tweet.id)}
+                      className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      {isSelected
+                        ? <CheckSquare className="w-4 h-4 text-primary" />
+                        : <Square className="w-4 h-4" />}
+                    </button>
                   )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">{tweet.authorName ?? tweet.authorHandle ?? "Unknown"}</span>
+                      {tweet.authorHandle && <span className="text-xs text-muted-foreground">@{tweet.authorHandle}</span>}
+                      <SentimentBadge sentiment={tweet.sentiment} />
+                      <StatusBadge status={tweet.status} />
+                    </div>
+                    {tweet.submittedByHandle && (
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Submitted by <span className="font-medium">@{tweet.submittedByHandle}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <a
+                    href={tweet.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    title="View tweet"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 </div>
-                <a
-                  href={tweet.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                  title="View tweet"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
 
-              {/* Content */}
-              {tweet.content && (
-                <p className="text-sm text-foreground leading-relaxed line-clamp-4 bg-muted/30 rounded-lg px-3 py-2">
-                  {tweet.content}
-                </p>
-              )}
+                {/* Content */}
+                {tweet.content && (
+                  <p className="text-sm text-foreground leading-relaxed line-clamp-4 bg-muted/30 rounded-lg px-3 py-2">
+                    {tweet.content}
+                  </p>
+                )}
 
-              {/* Meta */}
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="capitalize bg-muted px-1.5 py-0.5 rounded">{tweet.type}</span>
-                <span>{new Date(tweet.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-              </div>
-
-              {/* Actions — admin only, pending only */}
-              {isAdmin && tweet.status === "pending" && (
-                <div className="flex items-center gap-2 pt-1 border-t border-border">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => action(tweet.id, "approve", "Tweet approved and added to tracker")}
-                    disabled={actioning[tweet.id]}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-                    onClick={() => action(tweet.id, "reject", "Submission rejected")}
-                    disabled={actioning[tweet.id]}
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                    Reject
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-destructive"
-                    onClick={() => remove(tweet.id)}
-                    disabled={actioning[tweet.id]}
-                    title="Delete permanently"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                {/* Meta */}
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="capitalize bg-muted px-1.5 py-0.5 rounded">{tweet.type}</span>
+                  <span>{new Date(tweet.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Per-card actions — admin + pending only */}
+                {isAdmin && isPending && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-border">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => action(tweet.id, "approve", "Tweet approved and added to tracker")}
+                      disabled={actioning[tweet.id]}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => action(tweet.id, "reject", "Submission rejected")}
+                      disabled={actioning[tweet.id]}
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-destructive"
+                      onClick={() => remove(tweet.id)}
+                      disabled={actioning[tweet.id]}
+                      title="Delete permanently"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
