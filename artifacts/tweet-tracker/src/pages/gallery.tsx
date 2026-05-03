@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetTweetGallery,
@@ -13,6 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin, getAdminHeaders } from "@/contexts/admin";
 import { Images, Trash2, ExternalLink, RefreshCw, FileText, Image, LayoutGrid, HelpCircle } from "lucide-react";
+
+interface Party { id: number; name: string; shortName: string; color: string; }
 
 function TypeBadge({ type }: { type: string }) {
   const config: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -118,6 +120,9 @@ function TweetCard({
 
 export default function Gallery() {
   const [filterType, setFilterType] = useState<string | undefined>(undefined);
+  const [filterParty, setFilterParty] = useState<number | undefined>(undefined);
+  const [filterMeme, setFilterMeme] = useState(false);
+  const [parties, setParties] = useState<Party[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -127,6 +132,10 @@ export default function Gallery() {
   });
 
   const { isAdmin } = useAdmin();
+
+  useEffect(() => {
+    fetch("/api/parties").then((r) => r.json()).then(setParties).catch(() => {});
+  }, []);
 
   const handleDelete = async (id: number) => {
     try {
@@ -154,9 +163,10 @@ export default function Gallery() {
     },
   });
 
-  const filtered = filterType
-    ? (tweets ?? []).filter((t) => t.type === filterType)
-    : (tweets ?? []);
+  const filtered = (tweets ?? [])
+    .filter((t) => !filterType || t.type === filterType)
+    .filter((t) => !filterParty || (t as Tweet & { partyId?: number | null }).partyId === filterParty)
+    .filter((t) => !filterMeme || (t.tags ?? "").split(",").map((s) => s.trim().toLowerCase()).includes("meme"));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -164,22 +174,37 @@ export default function Gallery() {
         <div>
           <h1 className="text-lg font-semibold text-foreground">Screenshot Gallery</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {tweets?.length ?? 0} tweet{tweets?.length !== 1 ? "s" : ""} tracked
+            {filtered.length} of {tweets?.length ?? 0} tweet{tweets?.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex gap-1.5">
+      </div>
+
+      {/* Party + Meme tab bar */}
+      <div className="flex gap-1.5 flex-wrap border-b border-border pb-3">
+        <button
+          onClick={() => { setFilterParty(undefined); setFilterMeme(false); }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${!filterParty && !filterMeme ? "bg-primary text-primary-foreground shadow-sm" : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"}`}
+        >All</button>
+        {parties.map((party) => (
+          <button key={party.id}
+            onClick={() => { setFilterParty(filterParty === party.id ? undefined : party.id); setFilterMeme(false); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${filterParty === party.id ? "text-white border-transparent shadow-sm" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
+            style={filterParty === party.id ? { backgroundColor: party.color } : {}}
+          >{party.shortName}</button>
+        ))}
+        <button
+          onClick={() => { setFilterMeme((v) => !v); setFilterParty(undefined); }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${filterMeme ? "bg-pink-500 text-white border-transparent shadow-sm" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
+        >🎭 Memes</button>
+        <div className="ml-auto flex gap-1.5">
           {[undefined, "text", "image", "mixed"].map((t) => (
             <button
               key={t ?? "all"}
               onClick={() => setFilterType(t)}
               data-testid={`gallery-filter-${t ?? "all"}`}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                filterType === t
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card border border-border text-muted-foreground hover:text-foreground"
-              }`}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}
             >
-              {t === undefined ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === undefined ? "All types" : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>

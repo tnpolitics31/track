@@ -221,7 +221,9 @@ export default function Tracker() {
   const [eventIdInput, setEventIdInput] = useState("");
   const [filterType, setFilterType] = useState<string | undefined>(undefined);
   const [filterParty, setFilterParty] = useState<number | undefined>(undefined);
+  const [filterMeme, setFilterMeme] = useState(false);
   const [search, setSearch] = useState("");
+  const [isMemeInput, setIsMemeInput] = useState(false);
   const [selectedTweet, setSelectedTweet] = useState<TrackedTweet | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -310,7 +312,9 @@ export default function Tracker() {
 
   const tweets: TrackedTweet[] = (rawTweets ?? []) as TrackedTweet[];
 
-  const filteredTweets = filterParty ? tweets.filter((t) => t.partyId === filterParty) : tweets;
+  const filteredTweets = tweets
+    .filter((t) => !filterParty || t.partyId === filterParty)
+    .filter((t) => !filterMeme || (t.tags ?? "").split(",").map((s) => s.trim().toLowerCase()).includes("meme"));
 
   const refreshList = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: getListTweetsQueryKey() });
@@ -391,6 +395,7 @@ export default function Tracker() {
   const clearForm = () => {
     setUrlInput(""); setNotesInput(""); setTagsInput("");
     setPartyIdInput(""); setPoliticianIdInput(""); setEventIdInput("");
+    setIsMemeInput(false);
     setPreview({ loading: false, data: null, error: null });
   };
 
@@ -406,7 +411,11 @@ export default function Tracker() {
         body: JSON.stringify({
           url: urlInput.trim(),
           notes: notesInput || undefined,
-          tags: tagsInput || undefined,
+          tags: (() => {
+            const base = tagsInput.split(",").map((s) => s.trim()).filter(Boolean);
+            if (isMemeInput && !base.map((s) => s.toLowerCase()).includes("meme")) base.unshift("meme");
+            return base.join(", ") || undefined;
+          })(),
           partyId: partyIdInput ? Number(partyIdInput) : undefined,
           politicianId: politicianIdInput ? Number(politicianIdInput) : undefined,
           eventId: eventIdInput ? Number(eventIdInput) : undefined,
@@ -677,10 +686,18 @@ export default function Tracker() {
             </div>
           )}
 
-          {/* Tags / Notes row */}
-          <div className={`grid grid-cols-2 gap-2 ${urlError ? "mt-6" : ""}`}>
-            <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags (comma-sep)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs h-9" disabled={submitting} />
-            <Input value={notesInput} onChange={(e) => setNotesInput(e.target.value)} placeholder="Notes (optional)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs h-9" disabled={submitting} />
+          {/* Tags / Notes / Meme row */}
+          <div className={`flex gap-2 flex-wrap ${urlError ? "mt-6" : ""}`}>
+            <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags (comma-sep)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs h-9 flex-1 min-w-[120px]" disabled={submitting} />
+            <Input value={notesInput} onChange={(e) => setNotesInput(e.target.value)} placeholder="Notes (optional)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs h-9 flex-1 min-w-[120px]" disabled={submitting} />
+            <button
+              type="button"
+              onClick={() => setIsMemeInput((v) => !v)}
+              disabled={submitting}
+              className={`h-9 px-3 rounded-md text-xs font-semibold border transition-all flex items-center gap-1.5 flex-shrink-0 ${isMemeInput ? "bg-pink-500 text-white border-transparent" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
+            >
+              🎭 Meme
+            </button>
           </div>
           {/* Dropdowns + submit row */}
           <div className="grid grid-cols-3 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2">
@@ -723,7 +740,26 @@ export default function Tracker() {
         </form>
       </div>
 
-      {/* Filters + CSV export */}
+      {/* Party + Meme tab bar */}
+      <div className="flex gap-1.5 flex-wrap border-b border-border pb-3">
+        <button
+          onClick={() => { setFilterParty(undefined); setFilterMeme(false); }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${!filterParty && !filterMeme ? "bg-primary text-primary-foreground shadow-sm" : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"}`}
+        >All</button>
+        {parties.map((party) => (
+          <button key={party.id}
+            onClick={() => { setFilterParty(filterParty === party.id ? undefined : party.id); setFilterMeme(false); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${filterParty === party.id ? "text-white border-transparent shadow-sm" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
+            style={filterParty === party.id ? { backgroundColor: party.color } : {}}
+          >{party.shortName}</button>
+        ))}
+        <button
+          onClick={() => { setFilterMeme((v) => !v); setFilterParty(undefined); }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${filterMeme ? "bg-pink-500 text-white border-transparent shadow-sm" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
+        >🎭 Memes</button>
+      </div>
+
+      {/* Search + type filter + export */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -734,15 +770,6 @@ export default function Tracker() {
             <button key={t ?? "all"} onClick={() => setFilterType(t)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}
             >{t === undefined ? "All types" : t.charAt(0).toUpperCase() + t.slice(1)}</button>
-          ))}
-        </div>
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setFilterParty(undefined)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${filterParty === undefined ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}>All parties</button>
-          {parties.map((party) => (
-            <button key={party.id} onClick={() => setFilterParty(filterParty === party.id ? undefined : party.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors border ${filterParty === party.id ? "text-white border-transparent" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}
-              style={filterParty === party.id ? { backgroundColor: party.color } : {}}
-            >{party.shortName}</button>
           ))}
         </div>
         {tweets.length > 0 && (
