@@ -15,7 +15,7 @@ interface Politician {
 
 interface Tweet {
   id: number; url: string; authorName: string | null; authorHandle: string | null;
-  content: string | null; type: string; sentiment: string | null; createdAt: string;
+  content: string | null; type: string; sentiment: string | null; tags: string | null; createdAt: string;
   partyShortName: string | null; partyColor: string | null;
 }
 
@@ -57,10 +57,7 @@ function PaymentGate({ onUnlock }: { onUnlock: () => void }) {
           <p className="text-xs text-muted-foreground mt-1">Unlock this with a dummy Razorpay payment flow for now.</p>
         </div>
       </div>
-      <button
-        onClick={onUnlock}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-colors"
-      >
+      <button onClick={onUnlock} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-colors">
         <CreditCard className="w-4 h-4" />
         Pay & Generate
       </button>
@@ -77,6 +74,35 @@ async function downloadDataUrl(dataUrl: string, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function TweetList({ tweets }: { tweets: Tweet[] }) {
+  const [appreciationFilter, setAppreciationFilter] = useState<string | null>(null);
+  const filtered = tweets.filter((t) => !appreciationFilter || hasAppreciationTag(t.tags, appreciationFilter));
+  return (
+    <div className="space-y-3 p-4">
+      <AppreciationFilter value={appreciationFilter} onChange={setAppreciationFilter} />
+      {filtered.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground text-sm">No tweets match this filter.</div>
+      ) : (
+        <div className="divide-y divide-border/50">
+          {filtered.map((tweet) => (
+            <div key={tweet.id} className="py-3 hover:bg-muted/30 transition-colors">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <SentimentBadge sentiment={tweet.sentiment} />
+                  <span className="text-xs text-muted-foreground">{new Date(tweet.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                </div>
+                <a href={tweet.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary flex-shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>
+              </div>
+              {tweet.content && <p className="text-sm text-foreground line-clamp-3 leading-relaxed">{tweet.content}</p>}
+              <div className="mt-2"><TweetVoteButtons tweetId={tweet.id} compact /></div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PoliticianProfile() {
@@ -96,40 +122,19 @@ export default function PoliticianProfile() {
       .then(([pol, tweetsResp]) => {
         const tweets: Tweet[] = Array.isArray(tweetsResp) ? tweetsResp : (tweetsResp.tweets ?? []);
         const sentimentCounts: Record<string, number> = {};
-        for (const t of tweets) {
-          if (t.sentiment) sentimentCounts[t.sentiment] = (sentimentCounts[t.sentiment] ?? 0) + 1;
-        }
+        for (const t of tweets) if (t.sentiment) sentimentCounts[t.sentiment] = (sentimentCounts[t.sentiment] ?? 0) + 1;
         setData({ politician: pol, tweets, tweetCount: tweets.length, sentimentCounts });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-32 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
-      </div>
-    );
-  }
-
-  if (!data?.politician) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center">
-        <p className="text-muted-foreground">Politician not found.</p>
-        <Link href="/politicians" className="text-primary hover:underline text-sm mt-2 inline-block">← Back to Politicians</Link>
-      </div>
-    );
-  }
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-6 space-y-4"><Skeleton className="h-8 w-40" /><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-48 rounded-xl" /></div>;
+  if (!data?.politician) return <div className="max-w-3xl mx-auto px-4 py-12 text-center"><p className="text-muted-foreground">Politician not found.</p><Link href="/politicians" className="text-primary hover:underline text-sm mt-2 inline-block">← Back to Politicians</Link></div>;
 
   const { politician, tweets, sentimentCounts } = data;
   const color = politician.partyColor ?? "#6b7280";
-
-  const sentimentChartData = Object.entries(sentimentCounts)
-    .map(([key, val]) => ({ name: SENTIMENT_META[key]?.label ?? key, value: val, color: SENTIMENT_META[key]?.color ?? "#6b7280" }))
-    .sort((a, b) => b.value - a.value);
+  const sentimentChartData = Object.entries(sentimentCounts).map(([key, val]) => ({ name: SENTIMENT_META[key]?.label ?? key, value: val, color: SENTIMENT_META[key]?.color ?? "#6b7280" })).sort((a, b) => b.value - a.value);
   const monthLabel = useMemo(() => {
     const [year, mon] = month.split("-").map(Number);
     return new Date(year, mon - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
@@ -171,132 +176,47 @@ export default function PoliticianProfile() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Back */}
-      <Link href="/politicians" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft className="w-4 h-4" />Politicians
-      </Link>
-
-      {/* Profile card */}
+      <Link href="/politicians" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"><ArrowLeft className="w-4 h-4" />Politicians</Link>
       <div className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0" style={{ backgroundColor: color }}>
-              {politician.name.charAt(0)}
-            </div>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0" style={{ backgroundColor: color }}>{politician.name.charAt(0)}</div>
             <div>
               <h1 className="text-xl font-bold text-foreground">{politician.name}</h1>
-              {politician.twitterHandle && (
-                <a href={`https://x.com/${politician.twitterHandle}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline">
-                  <Twitter className="w-3.5 h-3.5" />@{politician.twitterHandle}
-                </a>
-              )}
+              {politician.twitterHandle && <a href={`https://x.com/${politician.twitterHandle}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline"><Twitter className="w-3.5 h-3.5" />@{politician.twitterHandle}</a>}
             </div>
           </div>
-          {politician.partyShortName && (
-            <span className="text-sm font-bold px-2.5 py-1 rounded" style={{ backgroundColor: `${color}20`, color }}>
-              {politician.partyShortName}
-            </span>
-          )}
+          {politician.partyShortName && <span className="text-sm font-bold px-2.5 py-1 rounded" style={{ backgroundColor: `${color}20`, color }}>{politician.partyShortName}</span>}
         </div>
-
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           {politician.role && <span className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" />{politician.role}</span>}
           {politician.constituency && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{politician.constituency}</span>}
           {politician.partyName && <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" />{politician.partyName}</span>}
         </div>
         {politician.bio && <p className="text-sm text-muted-foreground leading-relaxed">{politician.bio}</p>}
-
-        {/* Profile completion */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground font-medium">Profile completion</span>
-            <span className={`font-semibold ${completionPct === 100 ? "text-emerald-500" : completionPct >= 60 ? "text-amber-500" : "text-red-400"}`}>{completionPct}%</span>
-          </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${completionPct}%`, backgroundColor: completionPct === 100 ? "#10b981" : completionPct >= 60 ? "#f59e0b" : "#ef4444" }} />
-          </div>
-          {completionPct < 100 && (
-            <p className="text-xs text-muted-foreground">
-              Missing: {[!politician.twitterHandle && "Twitter handle", !politician.role && "Role", !politician.constituency && "Constituency", !politician.bio && "Bio", !politician.partyId && "Party"].filter(Boolean).join(", ")}
-            </p>
-          )}
+          <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground font-medium">Profile completion</span><span className={`font-semibold ${completionPct === 100 ? "text-emerald-500" : completionPct >= 60 ? "text-amber-500" : "text-red-400"}`}>{completionPct}%</span></div>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${completionPct}%`, backgroundColor: completionPct === 100 ? "#10b981" : completionPct >= 60 ? "#f59e0b" : "#ef4444" }} /></div>
+          {completionPct < 100 && <p className="text-xs text-muted-foreground">Missing: {[!politician.twitterHandle && "Twitter handle", !politician.role && "Role", !politician.constituency && "Constituency", !politician.bio && "Bio", !politician.partyId && "Party"].filter(Boolean).join(", ")}</p>}
         </div>
       </div>
-
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Generate Monthly Infographic</h2>
-            <p className="text-xs text-muted-foreground">Pick a month and unlock the download with Razorpay.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40 text-sm" />
-            {isUnlocked && (
-              <button onClick={handleDownload} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
-                <Image className="w-4 h-4" />
-                Download PNG
-              </button>
-            )}
-          </div>
+          <div><h2 className="text-sm font-semibold text-foreground">Generate Monthly Infographic</h2><p className="text-xs text-muted-foreground">Pick a month and unlock the download with Razorpay.</p></div>
+          <div className="flex items-center gap-2"><Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40 text-sm" />{isUnlocked && <button onClick={handleDownload} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold"><Image className="w-4 h-4" />Download PNG</button>}</div>
         </div>
-        {!isUnlocked ? (
-          <PaymentGate onUnlock={() => setIsUnlocked(true)} />
-        ) : (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <div className="text-sm font-semibold text-emerald-500">Payment approved</div>
-            <div className="text-xs text-muted-foreground mt-1">{politician.name} infographic for {monthLabel} is ready.</div>
-          </div>
-        )}
+        {!isUnlocked ? <PaymentGate onUnlock={() => setIsUnlocked(true)} /> : <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4"><div className="text-sm font-semibold text-emerald-500">Payment approved</div><div className="text-xs text-muted-foreground mt-1">{politician.name} infographic for {monthLabel} is ready.</div></div>}
         <canvas ref={canvasRef} className="hidden" />
       </div>
-
-      {/* Stats row */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold tabular-nums" style={{ color }}>{tweets.length}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1"><FileText className="w-3 h-3" />Tracked Tweets</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold tabular-nums text-emerald-500">{sentimentCounts.positive ?? 0}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1"><Smile className="w-3 h-3" />Positive</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold tabular-nums text-amber-500">{sentimentCounts.attack ?? 0}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1"><Swords className="w-3 h-3" />Attacks</div>
-        </div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center"><div className="text-2xl font-bold tabular-nums" style={{ color }}>{tweets.length}</div><div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1"><FileText className="w-3 h-3" />Tracked Tweets</div></div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center"><div className="text-2xl font-bold tabular-nums text-emerald-500">{sentimentCounts.positive ?? 0}</div><div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1"><Smile className="w-3 h-3" />Positive</div></div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center"><div className="text-2xl font-bold tabular-nums text-amber-500">{sentimentCounts.attack ?? 0}</div><div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1"><Swords className="w-3 h-3" />Attacks</div></div>
       </div>
-
-      {/* Sentiment chart */}
-      {sentimentChartData.length > 0 && (
-        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Sentiment Breakdown</h2>
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={sentimentChartData} barSize={32}>
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip
-                contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-              />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {sentimentChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Recent tweets */}
+      {sentimentChartData.length > 0 && <div className="bg-card border border-border rounded-xl p-4 space-y-3"><h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Sentiment Breakdown</h2><ResponsiveContainer width="100%" height={120}><BarChart data={sentimentChartData} barSize={32}><XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis hide /><Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} cursor={{ fill: "var(--muted)", opacity: 0.4 }} /><Bar dataKey="value" radius={[4, 4, 0, 0]}>{sentimentChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}</Bar></BarChart></ResponsiveContainer></div>}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Tracked Tweets</h2>
-          {politician.twitterHandle && (
-            <a href={`https://x.com/${politician.twitterHandle}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-              <ExternalLink className="w-3 h-3" />View on X
-            </a>
-          )}
-        </div>
-        <TweetsWithFilters tweets={tweets} />
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between"><h2 className="text-sm font-semibold text-foreground">Tracked Tweets</h2>{politician.twitterHandle && <a href={`https://x.com/${politician.twitterHandle}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><ExternalLink className="w-3 h-3" />View on X</a>}</div>
+        <TweetList tweets={tweets} />
       </div>
     </div>
   );
