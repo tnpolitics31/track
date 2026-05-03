@@ -33,7 +33,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center">
               <span className="text-primary text-xs font-bold">TN</span>
             </div>
-            <span className="font-semibold text-sm tracking-wide text-foreground">TN Politics</span>
+            <span className="font-semibold text-sm tracking-wide text-foreground">tn-politics</span>
           </div>
 
           {/* Desktop nav — hidden on mobile */}

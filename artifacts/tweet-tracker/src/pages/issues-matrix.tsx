@@ -82,7 +82,7 @@ function exportPDF(data: MatrixData, filtered: MatrixIssue[], visibleParties: st
 <html>
 <head>
 <meta charset="UTF-8"/>
-<title>TN Politics - Issues Report</title>
+<title>tn-politics - Issues Report</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 11px; color: #111; padding: 20px; }
@@ -102,7 +102,7 @@ function exportPDF(data: MatrixData, filtered: MatrixIssue[], visibleParties: st
 </style>
 </head>
 <body>
-<h1>TN Politics — Issues & Accountability Matrix</h1>
+<h1>tn-politics — Issues & Accountability Matrix</h1>
 <div class="meta">
   Generated: ${new Date().toLocaleString("en-IN")} · ${filtered.length} issues · Parties: ${partyList.map((p) => p.shortName).join(", ")}
   ${filterInfo ? `<br/>Filters: ${filterInfo}` : ""}
