@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, XCircle, Trash2, RefreshCw, Clock, ExternalLink, AlertTriangle, CheckCheck, Square, CheckSquare } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, RefreshCw, Clock, ExternalLink, AlertTriangle, CheckCheck, Square, CheckSquare, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/contexts/admin";
@@ -383,6 +383,32 @@ export default function Approvals() {
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-destructive"
+                      onClick={() => remove(tweet.id)}
+                      disabled={actioning[tweet.id]}
+                      title="Delete permanently"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Revoke — admin only, rejected items */}
+                {isAdmin && tweet.status === "rejected" && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-border">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => action(tweet.id, "revoke", "Rejection revoked — back to pending")}
+                      disabled={actioning[tweet.id]}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Revoke Rejection
                     </Button>
                     <Button
                       size="sm"

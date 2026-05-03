@@ -83,6 +83,17 @@ router.post("/:id/reject", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// POST /pending/:id/revoke — set rejected back to pending
+router.post("/:id/revoke", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid id" });
+  await db
+    .update(pendingTweetsTable)
+    .set({ status: "pending" })
+    .where(eq(pendingTweetsTable.id, id));
+  return res.json({ ok: true });
+});
+
 // DELETE /pending/:id — hard delete
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
