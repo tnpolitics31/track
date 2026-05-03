@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { BarChart2, Users, Calendar, FileText, ExternalLink, TrendingUp } from "lucide-react";
+import { BarChart2, Users, Calendar, FileText, ExternalLink, TrendingUp, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface PartyStats {
   id: number; name: string; shortName: string; color: string; description: string | null;
@@ -21,6 +22,56 @@ interface DashboardStats {
   totalTweets: number; totalPoliticians: number; totalEvents: number;
   partyStats: PartyStats[]; topPoliticians: TopPolitician[]; recentTweets: RecentTweet[];
 }
+interface ActivityDay { date: string; count: number; }
+interface PartyActivityData {
+  parties: { id: number; shortName: string; color: string }[];
+  data: Record<string, string | number>[];
+}
+
+function getHeatColor(count: number, max: number): string {
+  if (count === 0) return "bg-muted/40";
+  const intensity = count / Math.max(max, 1);
+  if (intensity < 0.25) return "bg-primary/20";
+  if (intensity < 0.5) return "bg-primary/40";
+  if (intensity < 0.75) return "bg-primary/70";
+  return "bg-primary";
+}
+
+function ActivityHeatmap({ data }: { data: ActivityDay[] }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  const weeks: ActivityDay[][] = [];
+  let week: ActivityDay[] = [];
+  for (const day of data) {
+    week.push(day);
+    if (week.length === 7) { weeks.push(week); week = []; }
+  }
+  if (week.length > 0) weeks.push(week);
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex gap-1 min-w-0">
+        {weeks.map((wk, wi) => (
+          <div key={wi} className="flex flex-col gap-1">
+            {wk.map((day) => (
+              <div
+                key={day.date}
+                title={`${day.date}: ${day.count} tweet${day.count !== 1 ? "s" : ""}`}
+                className={`w-3 h-3 rounded-sm cursor-default transition-colors ${getHeatColor(day.count, max)}`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
+        <span>Less</span>
+        {["bg-muted/40", "bg-primary/20", "bg-primary/40", "bg-primary/70", "bg-primary"].map((c, i) => (
+          <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+        ))}
+        <span>More</span>
+      </div>
+    </div>
+  );
+}
 
 function PartyCard({ party }: { party: PartyStats }) {
   return (
@@ -28,9 +79,7 @@ function PartyCard({ party }: { party: PartyStats }) {
       <div className="flex items-center gap-2">
         <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: party.color }} />
         <span className="font-bold text-foreground text-lg">{party.shortName}</span>
-        {party.description && (
-          <span className="text-xs text-muted-foreground truncate">{party.description}</span>
-        )}
+        {party.description && <span className="text-xs text-muted-foreground truncate">{party.description}</span>}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-muted/40 rounded-lg p-2 text-center">
@@ -49,11 +98,21 @@ function PartyCard({ party }: { party: PartyStats }) {
 export default function Dashboard() {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activity, setActivity] = useState<ActivityDay[]>([]);
+  const [partyActivity, setPartyActivity] = useState<PartyActivityData | null>(null);
 
   useEffect(() => {
-    fetch("/api/dashboard/stats")
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); })
+    Promise.all([
+      fetch("/api/dashboard/stats").then((r) => r.json()),
+      fetch("/api/dashboard/activity").then((r) => r.json()),
+      fetch("/api/dashboard/party-activity").then((r) => r.json()),
+    ])
+      .then(([stats, act, pa]) => {
+        setData(stats);
+        setActivity(act);
+        setPartyActivity(pa);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
@@ -79,12 +138,21 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Party comparison */}
+      {/* Activity Heatmap */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+          <Activity className="w-4 h-4 text-primary" />Activity — Last 90 Days
+        </h2>
+        <div className="bg-card border border-border rounded-xl p-4">
+          {loading ? <Skeleton className="h-16 rounded" /> : <ActivityHeatmap data={activity} />}
+        </div>
+      </section>
+
+      {/* Party comparison chart */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-primary" />
-            Party Activity
+            <BarChart2 className="w-4 h-4 text-primary" />Party Activity
           </h2>
         </div>
         {loading ? (
@@ -96,7 +164,29 @@ export default function Dashboard() {
             {data?.partyStats.map((party) => <PartyCard key={party.id} party={party} />)}
           </div>
         )}
-        {/* Bar chart visual */}
+
+        {/* Party comparison recharts */}
+        {!loading && partyActivity && partyActivity.data.length > 0 && (
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Weekly tweet volume by party (last 8 weeks)</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={partyActivity.data} barSize={12}>
+                <XAxis dataKey="week" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                  cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {partyActivity.parties.map((p) => (
+                  <Bar key={p.id} dataKey={p.shortName} fill={p.color} radius={[3, 3, 0, 0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Bar distribution */}
         {!loading && data && totalPartyTweets > 0 && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tweet distribution by party</p>
@@ -108,7 +198,7 @@ export default function Dashboard() {
                   style={{ backgroundColor: p.color, width: `${(p.tweetCount / totalPartyTweets) * 100}%`, minWidth: p.tweetCount > 0 ? "2rem" : "0" }}
                   title={`${p.shortName}: ${p.tweetCount}`}
                 >
-                  {p.tweetCount > 0 && `${p.shortName}`}
+                  {p.tweetCount > 0 && p.shortName}
                 </div>
               ))}
             </div>
@@ -128,8 +218,7 @@ export default function Dashboard() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
-            Top Politicians by Tracked Tweets
+            <Users className="w-4 h-4 text-primary" />Top Politicians by Tracked Tweets
           </h2>
           <Link href="/politicians" className="text-xs text-primary hover:underline">View all →</Link>
         </div>
@@ -144,7 +233,9 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {data?.topPoliticians.map((pol, i) => (
-              <div key={pol.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
+              <Link key={pol.id} href={`/politicians/${pol.id}`}
+                className="bg-card border border-border rounded-xl p-4 space-y-2 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer block"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-muted-foreground/50 text-xs font-bold tabular-nums">#{i + 1}</span>
@@ -164,7 +255,7 @@ export default function Dashboard() {
                   <FileText className="w-3 h-3" />
                   <span className="font-semibold text-foreground tabular-nums">{pol.tweetCount}</span> tracked tweets
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -174,18 +265,15 @@ export default function Dashboard() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" />
-            Recently Tracked
+            <FileText className="w-4 h-4 text-primary" />Recently Tracked
           </h2>
-          <Link href="/" className="text-xs text-primary hover:underline">Tracker →</Link>
+          <Link href="/tracker" className="text-xs text-primary hover:underline">Tracker →</Link>
         </div>
         {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
-          </div>
+          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
         ) : data?.recentTweets.length === 0 ? (
           <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
-            No tweets tracked yet. <Link href="/" className="text-primary hover:underline">Go to Tracker</Link> to start.
+            No tweets tracked yet. <Link href="/tracker" className="text-primary hover:underline">Go to Tracker</Link> to start.
           </div>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden divide-y divide-border/50">

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { issuesTable, issueActionsTable, partiesTable, politiciansTable } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { issuesTable, issueActionsTable, partiesTable, politiciansTable, tweetIssueLinksTable, tweetsTable } from "@workspace/db";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/adminAuth";
 
 const router = Router();
@@ -30,9 +30,7 @@ router.get("/matrix", async (_req, res) => {
 
   const issuesWithResponses = issues.map((issue) => {
     const responses: Record<string, { actionType: string; description: string | null; politicianName: string | null; sourceUrl: string | null }[]> = {};
-    for (const party of parties) {
-      responses[party.shortName] = [];
-    }
+    for (const party of parties) responses[party.shortName] = [];
     for (const action of allActions) {
       if (action.issueId === issue.id && action.partyShortName) {
         if (!responses[action.partyShortName]) responses[action.partyShortName] = [];
@@ -52,10 +50,13 @@ router.get("/matrix", async (_req, res) => {
 
 // GET /issues
 router.get("/", async (req, res) => {
-  const { category } = req.query;
+  const { category, status } = req.query;
   const conditions = [];
   if (category && typeof category === "string") {
     conditions.push(eq(issuesTable.category, category as "death" | "protest" | "scheme" | "objection" | "disaster" | "controversy" | "newsletter" | "other"));
+  }
+  if (status && typeof status === "string") {
+    conditions.push(eq(issuesTable.status, status as "open" | "in_progress" | "resolved"));
   }
 
   const issues = await db
@@ -64,17 +65,14 @@ router.get("/", async (req, res) => {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(issuesTable.createdAt));
 
-  // Get action counts per issue
   const allActions = await db.select().from(issueActionsTable);
   const actionCounts: Record<number, number> = {};
-  for (const a of allActions) {
-    actionCounts[a.issueId] = (actionCounts[a.issueId] ?? 0) + 1;
-  }
+  for (const a of allActions) actionCounts[a.issueId] = (actionCounts[a.issueId] ?? 0) + 1;
 
   return res.json(issues.map((issue) => ({ ...issue, actionCount: actionCounts[issue.id] ?? 0 })));
 });
 
-// GET /issues/:id — with all actions
+// GET /issues/:id — with all actions and linked tweets
 router.get("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const [issue] = await db.select().from(issuesTable).where(eq(issuesTable.id, id)).limit(1);
@@ -102,7 +100,31 @@ router.get("/:id", async (req, res) => {
     .where(eq(issueActionsTable.issueId, id))
     .orderBy(issueActionsTable.createdAt);
 
-  return res.json({ ...issue, actions });
+  // Get linked tweets
+  const links = await db.select().from(tweetIssueLinksTable).where(eq(tweetIssueLinksTable.issueId, id));
+  let linkedTweets: unknown[] = [];
+  if (links.length > 0) {
+    const tweetIds = links.map((l) => l.tweetId);
+    linkedTweets = await db
+      .select({
+        id: tweetsTable.id,
+        url: tweetsTable.url,
+        authorName: tweetsTable.authorName,
+        authorHandle: tweetsTable.authorHandle,
+        content: tweetsTable.content,
+        type: tweetsTable.type,
+        sentiment: tweetsTable.sentiment,
+        partyName: partiesTable.name,
+        partyShortName: partiesTable.shortName,
+        partyColor: partiesTable.color,
+        createdAt: tweetsTable.createdAt,
+      })
+      .from(tweetsTable)
+      .leftJoin(partiesTable, eq(tweetsTable.partyId, partiesTable.id))
+      .where(inArray(tweetsTable.id, tweetIds));
+  }
+
+  return res.json({ ...issue, actions, linkedTweets });
 });
 
 // POST /issues — open to all
@@ -113,10 +135,13 @@ router.post("/", async (req, res) => {
     title: title.trim(),
     description: description?.trim() || null,
     category: category ?? "other",
+    status: "open",
     dateOccurred: dateOccurred || null,
     sourceUrl: sourceUrl?.trim() || null,
     location: location?.trim() || null,
     createdBy: createdBy?.trim() || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }).returning();
   return res.status(201).json(issue);
 });
@@ -139,10 +164,26 @@ router.put("/:id", requireAdmin, async (req, res) => {
   return res.json(updated);
 });
 
+// PATCH /issues/:id/status — admin only
+router.patch("/:id/status", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body;
+  if (!["open", "in_progress", "resolved"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status. Must be open, in_progress, or resolved." });
+  }
+  const [updated] = await db.update(issuesTable).set({
+    status: status as "open" | "in_progress" | "resolved",
+    updatedAt: new Date().toISOString(),
+  }).where(eq(issuesTable.id, id)).returning();
+  if (!updated) return res.status(404).json({ error: "Issue not found." });
+  return res.json(updated);
+});
+
 // DELETE /issues/:id — admin only
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(issueActionsTable).where(eq(issueActionsTable.issueId, id));
+  await db.delete(tweetIssueLinksTable).where(eq(tweetIssueLinksTable.issueId, id));
   const [deleted] = await db.delete(issuesTable).where(eq(issuesTable.id, id)).returning();
   if (!deleted) return res.status(404).json({ error: "Issue not found." });
   return res.status(204).send();
@@ -161,6 +202,7 @@ router.post("/:id/actions", async (req, res) => {
     description: description?.trim() || null,
     sourceUrl: sourceUrl?.trim() || null,
     createdBy: createdBy?.trim() || null,
+    createdAt: new Date().toISOString(),
   }).returning();
   return res.status(201).json(action);
 });
@@ -170,6 +212,38 @@ router.delete("/:issueId/actions/:actionId", requireAdmin, async (req, res) => {
   const actionId = Number(req.params.actionId);
   const [deleted] = await db.delete(issueActionsTable).where(eq(issueActionsTable.id, actionId)).returning();
   if (!deleted) return res.status(404).json({ error: "Action not found." });
+  return res.status(204).send();
+});
+
+// POST /issues/:id/tweet-links — link a tweet to an issue
+router.post("/:id/tweet-links", requireAdmin, async (req, res) => {
+  const issueId = Number(req.params.id);
+  const { tweetId } = req.body;
+  if (!tweetId) return res.status(400).json({ error: "tweetId is required." });
+
+  // Check tweet exists
+  const [tweet] = await db.select().from(tweetsTable).where(eq(tweetsTable.id, Number(tweetId))).limit(1);
+  if (!tweet) return res.status(404).json({ error: "Tweet not found." });
+
+  // Check for duplicate
+  const [existing] = await db.select().from(tweetIssueLinksTable)
+    .where(and(eq(tweetIssueLinksTable.issueId, issueId), eq(tweetIssueLinksTable.tweetId, Number(tweetId)))).limit(1);
+  if (existing) return res.status(409).json({ error: "Already linked." });
+
+  const [link] = await db.insert(tweetIssueLinksTable).values({
+    tweetId: Number(tweetId),
+    issueId,
+    createdAt: new Date().toISOString(),
+  }).returning();
+  return res.status(201).json(link);
+});
+
+// DELETE /issues/:id/tweet-links/:tweetId — unlink tweet
+router.delete("/:id/tweet-links/:tweetId", requireAdmin, async (req, res) => {
+  const issueId = Number(req.params.id);
+  const tweetId = Number(req.params.tweetId);
+  await db.delete(tweetIssueLinksTable)
+    .where(and(eq(tweetIssueLinksTable.issueId, issueId), eq(tweetIssueLinksTable.tweetId, tweetId)));
   return res.status(204).send();
 });
 

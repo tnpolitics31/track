@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Users, Plus, Pencil, Trash2, Search, Twitter, MapPin, Briefcase, X } from "lucide-react";
+import { Link } from "wouter";
+import { Users, Plus, Pencil, Trash2, Search, Twitter, MapPin, Briefcase, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,6 +14,11 @@ interface Politician {
   id: number; name: string; partyId: number | null; twitterHandle: string | null;
   constituency: string | null; role: string | null; bio: string | null; createdAt: string;
   partyName: string | null; partyShortName: string | null; partyColor: string | null;
+}
+
+function profileCompletion(pol: Politician): number {
+  const fields = [pol.name, pol.twitterHandle, pol.role, pol.constituency, pol.bio, pol.partyId];
+  return Math.round((fields.filter(Boolean).length / fields.length) * 100);
 }
 
 const emptyForm = { name: "", partyId: "", twitterHandle: "", constituency: "", role: "", bio: "" };
@@ -32,10 +38,7 @@ export default function Politicians() {
   const { toast } = useToast();
 
   const fetchAll = async () => {
-    const [polRes, partyRes] = await Promise.all([
-      fetch("/api/politicians"),
-      fetch("/api/parties"),
-    ]);
+    const [polRes, partyRes] = await Promise.all([fetch("/api/politicians"), fetch("/api/parties")]);
     const [pols, parties] = await Promise.all([polRes.json(), partyRes.json()]);
     setPoliticians(pols);
     setParties(parties);
@@ -78,22 +81,28 @@ export default function Politicians() {
     return matchSearch && matchParty;
   });
 
+  const incompleteCount = politicians.filter((p) => profileCompletion(p) < 100).length;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />
-            Politicians
+            <Users className="w-5 h-5 text-primary" />Politicians
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {politicians.length} politician{politicians.length !== 1 ? "s" : ""} tracked
+            {politicians.length} tracked
+            {incompleteCount > 0 && (
+              <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
+                <AlertCircle className="w-3.5 h-3.5" />{incompleteCount} incomplete profile{incompleteCount !== 1 ? "s" : ""}
+              </span>
+            )}
           </p>
         </div>
         {isAdmin && (
           <Button onClick={openAdd} className="gap-2">
-            <Plus className="w-4 h-4" /> Add Politician
+            <Plus className="w-4 h-4" />Add Politician
           </Button>
         )}
       </div>
@@ -119,7 +128,7 @@ export default function Politicians() {
       {/* Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-16 text-center">
@@ -129,34 +138,49 @@ export default function Politicians() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((pol) => (
-            <div key={pol.id} className="bg-card border border-border rounded-xl p-4 space-y-3 hover:border-border/80 hover:shadow-sm transition-all group">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-foreground truncate">{pol.name}</div>
-                  {pol.twitterHandle && (
-                    <a href={`https://x.com/${pol.twitterHandle}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline mt-0.5">
-                      <Twitter className="w-3 h-3" />@{pol.twitterHandle}
-                    </a>
+          {filtered.map((pol) => {
+            const pct = profileCompletion(pol);
+            return (
+              <div key={pol.id} className="bg-card border border-border rounded-xl p-4 space-y-3 hover:border-border/80 hover:shadow-sm transition-all group">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/politicians/${pol.id}`} className="flex-1 min-w-0 hover:underline">
+                    <div className="font-semibold text-foreground truncate">{pol.name}</div>
+                    {pol.twitterHandle && (
+                      <div className="flex items-center gap-1 text-xs text-primary mt-0.5">
+                        <Twitter className="w-3 h-3" />@{pol.twitterHandle}
+                      </div>
+                    )}
+                  </Link>
+                  {pol.partyShortName && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: `${pol.partyColor}20`, color: pol.partyColor ?? undefined }}>
+                      {pol.partyShortName}
+                    </span>
                   )}
                 </div>
-                {pol.partyShortName && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: `${pol.partyColor}20`, color: pol.partyColor ?? undefined }}>
-                    {pol.partyShortName}
-                  </span>
+                {pol.role && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Briefcase className="w-3 h-3 flex-shrink-0" /><span className="truncate">{pol.role}</span></div>}
+                {pol.constituency && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin className="w-3 h-3 flex-shrink-0" /><span className="truncate">{pol.constituency}</span></div>}
+                {pol.bio && <p className="text-xs text-muted-foreground line-clamp-2">{pol.bio}</p>}
+
+                {/* Profile completion bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Profile</span>
+                    <span className={pct === 100 ? "text-emerald-500" : pct >= 60 ? "text-amber-500" : "text-red-400"}>{pct}%</span>
+                  </div>
+                  <div className="h-1 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pct === 100 ? "#10b981" : pct >= 60 ? "#f59e0b" : "#ef4444" }} />
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <div className="flex gap-1.5 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 flex-1" onClick={() => openEdit(pol)}><Pencil className="w-3 h-3" />Edit</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive flex-1" onClick={() => setDeleteTarget(pol)}><Trash2 className="w-3 h-3" />Delete</Button>
+                  </div>
                 )}
               </div>
-              {pol.role && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Briefcase className="w-3 h-3 flex-shrink-0" /><span className="truncate">{pol.role}</span></div>}
-              {pol.constituency && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin className="w-3 h-3 flex-shrink-0" /><span className="truncate">{pol.constituency}</span></div>}
-              {pol.bio && <p className="text-xs text-muted-foreground line-clamp-2">{pol.bio}</p>}
-              {isAdmin && (
-                <div className="flex gap-1.5 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 flex-1" onClick={() => openEdit(pol)}><Pencil className="w-3 h-3" />Edit</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive flex-1" onClick={() => setDeleteTarget(pol)}><Trash2 className="w-3 h-3" />Delete</Button>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

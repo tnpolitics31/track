@@ -8,6 +8,7 @@ import eventsRouter from "./events";
 import dashboardRouter from "./dashboard";
 import issuesRouter from "./issues";
 import syncRouter from "./sync";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use("/events", eventsRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/issues", issuesRouter);
 router.use("/sync", syncRouter);
+router.use("/search", searchRouter);
 
 export default router;

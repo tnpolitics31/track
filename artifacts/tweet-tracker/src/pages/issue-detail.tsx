@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { AlertTriangle, Plus, Trash2, ExternalLink, MapPin, Calendar, User, ArrowLeft, CheckCircle2, XCircle, Plane, Megaphone, ShieldAlert, Star, FileText, HandMetal, HelpCircle } from "lucide-react";
+import { AlertTriangle, Plus, Trash2, ExternalLink, MapPin, Calendar, User, ArrowLeft, CheckCircle2, XCircle, Plane, Megaphone, ShieldAlert, Star, FileText, HandMetal, HelpCircle, Circle, Clock, Link2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,10 +18,15 @@ interface IssueAction {
   partyName: string | null; partyShortName: string | null; partyColor: string | null;
   politicianName: string | null;
 }
+interface LinkedTweet {
+  id: number; url: string; authorName: string | null; authorHandle: string | null;
+  content: string | null; type: string; sentiment: string | null;
+  partyShortName: string | null; partyColor: string | null; createdAt: string;
+}
 interface IssueDetail {
-  id: number; title: string; description: string | null; category: string;
+  id: number; title: string; description: string | null; category: string; status: string;
   dateOccurred: string | null; sourceUrl: string | null; location: string | null;
-  createdBy: string | null; createdAt: string; actions: IssueAction[];
+  createdBy: string | null; createdAt: string; actions: IssueAction[]; linkedTweets: LinkedTweet[];
 }
 
 const ACTION_TYPES = [
@@ -38,8 +43,23 @@ const ACTION_TYPES = [
   { value: "other", label: "Other", icon: <HelpCircle className="w-4 h-4" />, color: "#6b7280" },
 ];
 
+const STATUS_OPTIONS = [
+  { value: "open", label: "Open", color: "#ef4444", icon: <Circle className="w-3.5 h-3.5" /> },
+  { value: "in_progress", label: "In Progress", color: "#f59e0b", icon: <Clock className="w-3.5 h-3.5" /> },
+  { value: "resolved", label: "Resolved", color: "#10b981", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+];
+
 export function getActionMeta(value: string) {
   return ACTION_TYPES.find((a) => a.value === value) ?? ACTION_TYPES[ACTION_TYPES.length - 1];
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const meta = STATUS_OPTIONS.find((s) => s.value === status) ?? STATUS_OPTIONS[0];
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ backgroundColor: `${meta.color}18`, color: meta.color }}>
+      {meta.icon}{meta.label}
+    </span>
+  );
 }
 
 function ActionCard({ action, onDelete, isAdmin }: { action: IssueAction; onDelete: () => void; isAdmin: boolean }) {
@@ -84,9 +104,13 @@ export default function IssueDetail() {
   const [politicians, setPoliticians] = useState<Politician[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
   const [deleteAction, setDeleteAction] = useState<IssueAction | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [linkTweetUrl, setLinkTweetUrl] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const { isAdmin } = useAdmin();
   const { toast } = useToast();
 
@@ -126,17 +150,64 @@ export default function IssueDetail() {
     setDeleteAction(null);
   };
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!issue) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/issues/${issue.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAdminHeaders() },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setIssue((prev) => prev ? { ...prev, status: updated.status } : prev);
+        toast({ title: "Status updated" });
+      }
+    } finally { setUpdatingStatus(false); }
+  };
+
+  const handleLinkTweet = async () => {
+    if (!linkTweetUrl.trim()) return;
+    setLinking(true);
+    try {
+      // Find tweet by URL
+      const res = await fetch(`/api/tweets?url=${encodeURIComponent(linkTweetUrl.trim())}`);
+      const data = await res.json();
+      const tweets = Array.isArray(data) ? data : (data.tweets ?? []);
+      if (tweets.length === 0) {
+        toast({ title: "Tweet not found", description: "Make sure this tweet is tracked first.", variant: "destructive" });
+        return;
+      }
+      const tweet = tweets[0];
+      const linkRes = await fetch(`/api/issues/${params.id}/tweet-links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAdminHeaders() },
+        body: JSON.stringify({ tweetId: tweet.id }),
+      });
+      if (linkRes.status === 409) { toast({ title: "Already linked" }); return; }
+      if (!linkRes.ok) { toast({ title: "Failed to link", variant: "destructive" }); return; }
+      toast({ title: "Tweet linked" });
+      setLinkTweetUrl("");
+      setShowLinkModal(false);
+      fetchIssue();
+    } finally { setLinking(false); }
+  };
+
+  const handleUnlinkTweet = async (tweetId: number) => {
+    await fetch(`/api/issues/${params.id}/tweet-links/${tweetId}`, { method: "DELETE", headers: getAdminHeaders() });
+    fetchIssue();
+  };
+
   const filteredPoliticians = form.partyId ? politicians.filter((p) => !p.partyId || p.partyId === Number(form.partyId)) : politicians;
 
-  // Group actions by party
   const actionsByParty: Record<string, IssueAction[]> = {};
   const unattributed: IssueAction[] = [];
   if (issue) {
     for (const action of issue.actions) {
       if (action.partyShortName) {
-        const key = action.partyShortName;
-        if (!actionsByParty[key]) actionsByParty[key] = [];
-        actionsByParty[key].push(action);
+        if (!actionsByParty[action.partyShortName]) actionsByParty[action.partyShortName] = [];
+        actionsByParty[action.partyShortName].push(action);
       } else {
         unattributed.push(action);
       }
@@ -167,6 +238,7 @@ export default function IssueDetail() {
                   {categoryMeta.emoji} {categoryMeta.label}
                 </span>
               )}
+              <StatusBadge status={issue.status} />
               {issue.location && <span className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-3.5 h-3.5" />{issue.location}</span>}
               {issue.dateOccurred && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Calendar className="w-3.5 h-3.5" />{new Date(issue.dateOccurred).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</span>}
             </div>
@@ -177,6 +249,69 @@ export default function IssueDetail() {
               {issue.createdBy && <span className="flex items-center gap-1"><User className="w-3 h-3" />Logged by {issue.createdBy}</span>}
               <span>Logged {new Date(issue.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
             </div>
+
+            {/* Status change — admin only */}
+            {isAdmin && (
+              <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <span className="text-xs font-medium text-muted-foreground">Change status:</span>
+                {STATUS_OPTIONS.map((s) => (
+                  <button key={s.value}
+                    disabled={issue.status === s.value || updatingStatus}
+                    onClick={() => handleStatusChange(s.value)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
+                    style={issue.status === s.value
+                      ? { backgroundColor: `${s.color}18`, color: s.color, borderColor: `${s.color}40` }
+                      : { borderColor: "var(--border)", color: "var(--muted-foreground)", background: "var(--card)" }}
+                  >
+                    {s.icon}{s.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Linked Tweets */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-primary" />Linked Tweets
+                <span className="text-sm font-normal text-muted-foreground">({issue.linkedTweets?.length ?? 0})</span>
+              </h2>
+              {isAdmin && (
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setShowLinkModal(true)}>
+                  <Link2 className="w-3.5 h-3.5" />Link Tweet
+                </Button>
+              )}
+            </div>
+            {(!issue.linkedTweets || issue.linkedTweets.length === 0) ? (
+              <div className="bg-card border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
+                No tweets linked yet. Link tracked tweets as evidence.
+              </div>
+            ) : (
+              <div className="bg-card border border-border rounded-xl overflow-hidden divide-y divide-border/50">
+                {issue.linkedTweets.map((tweet) => (
+                  <div key={tweet.id} className="px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors group">
+                    {tweet.partyShortName && (
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: `${tweet.partyColor}25`, color: tweet.partyColor ?? undefined }}>
+                        {tweet.partyShortName}
+                      </span>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-muted-foreground">{tweet.authorName ?? tweet.authorHandle}</div>
+                      <div className="text-sm text-foreground line-clamp-2 leading-snug">{tweet.content}</div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <a href={tweet.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary"><ExternalLink className="w-3.5 h-3.5" /></a>
+                      {isAdmin && (
+                        <button onClick={() => handleUnlinkTweet(tweet.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Unlink className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Party responses */}
@@ -202,7 +337,6 @@ export default function IssueDetail() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* By party */}
                 {Object.entries(actionsByParty).map(([partyKey, actions]) => {
                   const color = actions[0]?.partyColor ?? "#6b7280";
                   return (
@@ -220,7 +354,6 @@ export default function IssueDetail() {
                     </div>
                   );
                 })}
-                {/* Unattributed */}
                 {unattributed.length > 0 && (
                   <div className="space-y-2">
                     <span className="text-sm font-semibold text-muted-foreground">Other / General</span>
@@ -289,6 +422,30 @@ export default function IssueDetail() {
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
               <Button onClick={handleAddAction} disabled={saving}>{saving ? "Saving…" : "Log Response"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link Tweet Modal */}
+      <Dialog open={showLinkModal} onOpenChange={(o) => !o && setShowLinkModal(false)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2"><Link2 className="w-4 h-4 text-primary" />Link a Tweet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Paste the URL of a tweet you've already tracked to attach it as evidence for this issue.</p>
+            <Input
+              value={linkTweetUrl}
+              onChange={(e) => setLinkTweetUrl(e.target.value)}
+              placeholder="https://x.com/user/status/..."
+              className="bg-background border-border"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowLinkModal(false)}>Cancel</Button>
+              <Button onClick={handleLinkTweet} disabled={linking || !linkTweetUrl.trim()}>
+                {linking ? "Linking…" : "Link Tweet"}
+              </Button>
             </div>
           </div>
         </DialogContent>

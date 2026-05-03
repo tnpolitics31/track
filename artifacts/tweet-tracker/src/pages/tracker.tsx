@@ -244,6 +244,12 @@ export default function Tracker() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ added: number; skipped: number } | null>(null);
 
+  // Bulk sync state
+  const [bulkSyncOpen, setBulkSyncOpen] = useState(false);
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+  const [bulkSyncCount, setBulkSyncCount] = useState("20");
+  const [bulkSyncResult, setBulkSyncResult] = useState<{ totalAdded: number; totalSkipped: number; results: { name: string; handle: string; added: number; skipped: number; error?: string }[] } | null>(null);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin } = useAdmin();
@@ -340,6 +346,31 @@ export default function Tracker() {
       toast({ title: "Sync failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleBulkSync = async () => {
+    setBulkSyncing(true);
+    setBulkSyncResult(null);
+    try {
+      const res = await fetch("/api/sync/all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: Number(bulkSyncCount) || 20 }),
+      });
+      const data = await res.json() as { totalAdded: number; totalSkipped: number; results: { name: string; handle: string; added: number; skipped: number; error?: string }[] };
+      if (!res.ok) throw new Error("Bulk sync failed");
+      setBulkSyncResult(data);
+      if (data.totalAdded > 0) {
+        refreshList();
+        toast({ title: `Bulk sync complete: ${data.totalAdded} new tweets` });
+      } else {
+        toast({ title: "Bulk sync complete", description: "No new tweets found" });
+      }
+    } catch (e: unknown) {
+      toast({ title: "Bulk sync failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBulkSyncing(false);
     }
   };
 
@@ -501,13 +532,66 @@ export default function Tracker() {
         </DialogContent>
       </Dialog>
 
+      {/* Bulk Sync Dialog */}
+      <Dialog open={bulkSyncOpen} onOpenChange={(o) => { setBulkSyncOpen(o); if (!o) setBulkSyncResult(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Database className="w-4 h-4 text-primary" />Bulk Sync All Politicians</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <p className="text-xs text-muted-foreground">Fetches the latest tweets for every politician who has a Twitter handle set. This may take a few minutes.</p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tweets per politician</label>
+              <Select value={bulkSyncCount} onValueChange={setBulkSyncCount} disabled={bulkSyncing}>
+                <SelectTrigger className="text-sm h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["10","20","30"].map((n) => <SelectItem key={n} value={n}>{n} tweets</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {bulkSyncResult && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    <strong>{bulkSyncResult.totalAdded}</strong> added, <strong>{bulkSyncResult.totalSkipped}</strong> skipped
+                  </span>
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {bulkSyncResult.results.map((r) => (
+                    <div key={r.handle} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-muted/40">
+                      <span className="font-medium">{r.name} <span className="text-muted-foreground">@{r.handle}</span></span>
+                      <span className={r.error ? "text-destructive" : "text-emerald-500"}>
+                        {r.error ? "Error" : `+${r.added}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button className="w-full" onClick={handleBulkSync} disabled={bulkSyncing}>
+              {bulkSyncing
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Syncing all politicians…</>
+                : <><Database className="w-4 h-4 mr-2" />Bulk Sync All</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Input form */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">Track a Tweet</h2>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => { setSyncOpen(true); setSyncResult(null); }}>
-            <Zap className="w-3 h-3" />Auto-Sync
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => { setBulkSyncOpen(true); setBulkSyncResult(null); }}>
+              <Database className="w-3 h-3" />Bulk Sync
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => { setSyncOpen(true); setSyncResult(null); }}>
+              <Zap className="w-3 h-3" />Auto-Sync
+            </Button>
+          </div>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* URL row */}

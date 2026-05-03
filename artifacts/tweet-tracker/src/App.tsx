@@ -9,6 +9,7 @@ import Gallery from "@/pages/gallery";
 import Attendance from "@/pages/attendance";
 import Dashboard from "@/pages/dashboard";
 import Politicians from "@/pages/politicians";
+import PoliticianProfile from "@/pages/politician-profile";
 import Events from "@/pages/events";
 import Issues from "@/pages/issues";
 import IssueDetail from "@/pages/issue-detail";
@@ -31,6 +32,7 @@ function Router() {
         <Route path="/tracker" component={Tracker} />
         <Route path="/gallery" component={Gallery} />
         <Route path="/attendance" component={Attendance} />
+        <Route path="/politicians/:id" component={PoliticianProfile} />
         <Route path="/politicians" component={Politicians} />
         <Route path="/events" component={Events} />
         <Route path="/issues/matrix" component={IssuesMatrix} />

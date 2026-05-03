@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { tweetsTable, partiesTable, politiciansTable, eventsTable } from "@workspace/db";
-import { eq, desc, count, sql } from "drizzle-orm";
+import { eq, desc, count, sql, gte } from "drizzle-orm";
 import { ensureDefaultParties } from "./parties";
 
 const router = Router();
@@ -87,6 +87,70 @@ router.get("/stats", async (_req, res) => {
     topPoliticians,
     recentTweets,
   });
+});
+
+// GET /dashboard/activity — tweet count by day for the last 90 days (heatmap data)
+router.get("/activity", async (_req, res) => {
+  const since = new Date();
+  since.setDate(since.getDate() - 89);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const rows = await db
+    .select({
+      day: sql<string>`date(${tweetsTable.createdAt})`.as("day"),
+      count: count(),
+    })
+    .from(tweetsTable)
+    .where(gte(tweetsTable.createdAt, sinceStr))
+    .groupBy(sql`date(${tweetsTable.createdAt})`)
+    .orderBy(sql`date(${tweetsTable.createdAt})`);
+
+  // Fill in all days in range
+  const map = new Map(rows.map((r) => [r.day, r.count]));
+  const result: { date: string; count: number }[] = [];
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(since);
+    d.setDate(since.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    result.push({ date: key, count: map.get(key) ?? 0 });
+  }
+  return res.json(result);
+});
+
+// GET /dashboard/party-activity — tweet count by party per week (last 8 weeks)
+router.get("/party-activity", async (_req, res) => {
+  const since = new Date();
+  since.setDate(since.getDate() - 55);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const parties = await db.select().from(partiesTable).orderBy(partiesTable.id);
+
+  const rows = await db
+    .select({
+      week: sql<string>`strftime('%Y-W%W', ${tweetsTable.createdAt})`.as("week"),
+      partyId: tweetsTable.partyId,
+      count: count(),
+    })
+    .from(tweetsTable)
+    .where(gte(tweetsTable.createdAt, sinceStr))
+    .groupBy(sql`strftime('%Y-W%W', ${tweetsTable.createdAt})`, tweetsTable.partyId)
+    .orderBy(sql`strftime('%Y-W%W', ${tweetsTable.createdAt})`);
+
+  // Get unique weeks
+  const weeksSet = new Set(rows.map((r) => r.week));
+  const weeks = Array.from(weeksSet).sort();
+
+  // Build chart data: [{week, DMK: n, TVK: n, ...}]
+  const data = weeks.map((week) => {
+    const entry: Record<string, string | number> = { week };
+    for (const party of parties) {
+      const row = rows.find((r) => r.week === week && r.partyId === party.id);
+      entry[party.shortName] = row?.count ?? 0;
+    }
+    return entry;
+  });
+
+  return res.json({ parties: parties.map((p) => ({ id: p.id, shortName: p.shortName, color: p.color })), data });
 });
 
 export default router;

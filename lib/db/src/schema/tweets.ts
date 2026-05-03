@@ -10,6 +10,7 @@ export const tweetsTable = sqliteTable("tweets", {
   authorName: text("author_name"),
   content: text("content"),
   type: text("type", { enum: ["text", "image", "mixed", "unknown"] }).notNull().default("unknown"),
+  sentiment: text("sentiment", { enum: ["positive", "negative", "neutral", "attack", "promise"] }),
   screenshotUrl: text("screenshot_url"),
   tags: text("tags"),
   notes: text("notes"),
