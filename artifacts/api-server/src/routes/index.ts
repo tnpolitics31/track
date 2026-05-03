@@ -6,6 +6,7 @@ import partiesRouter from "./parties";
 import politiciansRouter from "./politicians";
 import eventsRouter from "./events";
 import dashboardRouter from "./dashboard";
+import issuesRouter from "./issues";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/parties", partiesRouter);
 router.use("/politicians", politiciansRouter);
 router.use("/events", eventsRouter);
 router.use("/dashboard", dashboardRouter);
+router.use("/issues", issuesRouter);
 
 export default router;

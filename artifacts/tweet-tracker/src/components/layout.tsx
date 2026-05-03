@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ShieldOff, ClipboardList, Users, Calendar } from "lucide-react";
+import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ShieldOff, ClipboardList, Users, Calendar, AlertTriangle } from "lucide-react";
 import { useTheme } from "@/App";
 import { useAdmin } from "@/contexts/admin";
 import AdminLoginModal from "@/components/admin-login-modal";
@@ -10,6 +10,7 @@ interface LayoutProps { children: React.ReactNode; }
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: BarChart2, testId: "nav-dashboard" },
   { href: "/tracker", label: "Tracker", icon: Database, testId: "nav-tracker" },
+  { href: "/issues", label: "Issues", icon: AlertTriangle, testId: "nav-issues" },
   { href: "/politicians", label: "Politicians", icon: Users, testId: "nav-politicians" },
   { href: "/events", label: "Events", icon: Calendar, testId: "nav-events" },
   { href: "/gallery", label: "Gallery", icon: Images, testId: "nav-gallery" },
