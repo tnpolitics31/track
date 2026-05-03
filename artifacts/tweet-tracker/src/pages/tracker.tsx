@@ -467,26 +467,29 @@ export default function Tracker() {
             </div>
           )}
 
-          {/* Tags / metadata row */}
-          <div className={`grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] gap-2 ${urlError ? "mt-6" : ""}`}>
+          {/* Tags / Notes row */}
+          <div className={`grid grid-cols-2 gap-2 ${urlError ? "mt-6" : ""}`}>
             <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags (comma-sep)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs h-9" disabled={submitting} />
             <Input value={notesInput} onChange={(e) => setNotesInput(e.target.value)} placeholder="Notes (optional)" className="bg-background border-border text-foreground placeholder:text-muted-foreground text-xs h-9" disabled={submitting} />
-            <select value={partyIdInput} onChange={(e) => { setPartyIdInput(e.target.value); setPoliticianIdInput(""); }} className="rounded-md border border-border bg-background text-foreground text-xs px-2 h-9" disabled={submitting}>
+          </div>
+          {/* Dropdowns + submit row */}
+          <div className="grid grid-cols-3 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2">
+            <select value={partyIdInput} onChange={(e) => { setPartyIdInput(e.target.value); setPoliticianIdInput(""); }} className="rounded-md border border-border bg-background text-foreground text-[11px] px-1.5 h-9 w-full" disabled={submitting}>
               <option value="">Party</option>
               {parties.map((p) => <option key={p.id} value={p.id}>{p.shortName}</option>)}
             </select>
-            <select value={politicianIdInput} onChange={(e) => setPoliticianIdInput(e.target.value)} className="rounded-md border border-border bg-background text-foreground text-xs px-2 h-9" disabled={submitting}>
+            <select value={politicianIdInput} onChange={(e) => setPoliticianIdInput(e.target.value)} className="rounded-md border border-border bg-background text-foreground text-[11px] px-1.5 h-9 w-full" disabled={submitting}>
               <option value="">Politician</option>
               {filteredPoliticians.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <select value={eventIdInput} onChange={(e) => setEventIdInput(e.target.value)} className="rounded-md border border-border bg-background text-foreground text-xs px-2 h-9" disabled={submitting}>
+            <select value={eventIdInput} onChange={(e) => setEventIdInput(e.target.value)} className="rounded-md border border-border bg-background text-foreground text-[11px] px-1.5 h-9 w-full" disabled={submitting}>
               <option value="">Event</option>
               {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
             <Button
               type="submit"
               disabled={!urlInput.trim() || !!urlError || submitting || preview.data?.isDuplicate === true}
-              className="whitespace-nowrap col-span-2 sm:col-span-1 h-9"
+              className="whitespace-nowrap col-span-3 sm:col-span-1 h-9"
             >
               {submitting ? <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" />Analyzing...</span> : "Track Tweet"}
             </Button>
