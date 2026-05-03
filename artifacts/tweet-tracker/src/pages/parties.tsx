@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Users, FileText, AlertTriangle, BarChart2, Search, ExternalLink, Image, LayoutGrid, HelpCircle, ChevronRight, Lock, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
@@ -63,6 +63,17 @@ function PaymentGate({ onUnlock }: { onUnlock: () => void }) {
       </button>
     </div>
   );
+}
+
+async function downloadDataUrl(dataUrl: string, filename: string) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function PartyOverview({ party, tweets, politicians, issues, schemes }: {
@@ -345,11 +356,42 @@ export default function Parties() {
   const [loading, setLoading] = useState(false);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const monthLabel = useMemo(() => {
     const [year, mon] = month.split("-").map(Number);
     return new Date(year, mon - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
   }, [month]);
+
+  const handleDownload = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !selectedParty) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const width = 1200;
+    const height = 1500;
+    canvas.width = width;
+    canvas.height = height;
+    ctx.fillStyle = "#0f172a";
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = selectedParty.color;
+    ctx.fillRect(0, 0, width, 180);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 56px sans-serif";
+    ctx.fillText(selectedParty.name, 60, 100);
+    ctx.font = "28px sans-serif";
+    ctx.fillText(monthLabel, 60, 150);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "32px sans-serif";
+    ctx.fillText(`Tweets: ${tweets.length}`, 60, 280);
+    ctx.fillText(`Politicians: ${politicians.length}`, 60, 340);
+    ctx.fillText(`Issues: ${issues.length}`, 60, 400);
+    ctx.fillText(`Schemes: ${schemes.length}`, 60, 460);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Generated in tn-politics", 60, 1440);
+    await downloadDataUrl(canvas.toDataURL("image/png"), `${selectedParty.shortName}-${month}.png`);
+  };
 
   useEffect(() => {
     fetch("/api/parties").then((r) => r.json()).then((data: Party[]) => {
@@ -418,7 +460,7 @@ export default function Parties() {
             <div className="flex items-center gap-2">
               <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40 text-sm" />
               {isUnlocked && (
-                <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
+                <button onClick={handleDownload} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
                   <Image className="w-4 h-4" />
                   Download PNG
                 </button>
@@ -435,6 +477,7 @@ export default function Parties() {
               </div>
             </div>
           )}
+        <canvas ref={canvasRef} className="hidden" />
         </div>
       )}
 

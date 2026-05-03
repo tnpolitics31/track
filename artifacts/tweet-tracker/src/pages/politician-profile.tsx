@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { ArrowLeft, Twitter, MapPin, Briefcase, FileText, ExternalLink, Users, TrendingUp, Smile, Frown, Meh, Swords, Star, Lock, CreditCard, Image } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,6 +66,17 @@ function PaymentGate({ onUnlock }: { onUnlock: () => void }) {
   );
 }
 
+async function downloadDataUrl(dataUrl: string, filename: string) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function PoliticianProfile() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
@@ -73,6 +84,7 @@ export default function PoliticianProfile() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -120,6 +132,36 @@ export default function PoliticianProfile() {
     const [year, mon] = month.split("-").map(Number);
     return new Date(year, mon - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
   }, [month]);
+
+  const handleDownload = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const width = 1200;
+    const height = 1500;
+    canvas.width = width;
+    canvas.height = height;
+    ctx.fillStyle = "#0f172a";
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, 180);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 56px sans-serif";
+    ctx.fillText(politician.name, 60, 100);
+    ctx.font = "28px sans-serif";
+    ctx.fillText(monthLabel, 60, 150);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "32px sans-serif";
+    ctx.fillText(`Tweets: ${tweets.length}`, 60, 280);
+    ctx.fillText(`Positive: ${sentimentCounts.positive ?? 0}`, 60, 340);
+    ctx.fillText(`Attacks: ${sentimentCounts.attack ?? 0}`, 60, 400);
+    ctx.fillText(`Neutral: ${sentimentCounts.neutral ?? 0}`, 60, 460);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Generated in tn-politics", 60, 1440);
+    await downloadDataUrl(canvas.toDataURL("image/png"), `${politician.twitterHandle ?? politician.name}-${month}.png`);
+  };
 
   const profileFields = [politician.name, politician.twitterHandle, politician.role, politician.constituency, politician.bio, politician.partyId];
   const filledCount = profileFields.filter(Boolean).length;
@@ -188,7 +230,7 @@ export default function PoliticianProfile() {
           <div className="flex items-center gap-2">
             <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40 text-sm" />
             {isUnlocked && (
-              <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
+              <button onClick={handleDownload} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold">
                 <Image className="w-4 h-4" />
                 Download PNG
               </button>
@@ -203,6 +245,7 @@ export default function PoliticianProfile() {
             <div className="text-xs text-muted-foreground mt-1">{politician.name} infographic for {monthLabel} is ready.</div>
           </div>
         )}
+        <canvas ref={canvasRef} className="hidden" />
       </div>
 
       {/* Stats row */}
