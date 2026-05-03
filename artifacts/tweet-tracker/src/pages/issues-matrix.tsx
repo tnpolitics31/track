@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Download, Search, X, Filter, AlertTriangle, ChevronDown, ChevronUp, BarChart3, Table2, Percent } from "lucide-react";
+import { ArrowLeft, Download, Search, X, Filter, AlertTriangle, ChevronDown, ChevronUp, BarChart3, Table2, Percent, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -165,21 +165,29 @@ export default function IssuesMatrix() {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <button onClick={() => setFiltersOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border/50">
+          <button onClick={() => setFiltersOpen((o) => !o)} className="flex items-center gap-2 text-left">
             <Filter className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filters</span>
             {activeFilterCount > 0 && <span className="bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">{activeFilterCount}</span>}
+            {filtersOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+              <Link href="/issues">
+                <Plus className="w-3.5 h-3.5" />
+                Log Issue
+              </Link>
+            </Button>
           </div>
-          {filtersOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-        </button>
+        </div>
         {filtersOpen && (
-          <div className="px-4 pb-3 space-y-3 border-t border-border/50 pt-2.5">
+          <div className="px-3 sm:px-4 pb-3 space-y-3 pt-2.5">
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setView("matrix")} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border ${view === "matrix" ? "bg-primary text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground"}`}><Table2 className="w-3 h-3" />Table</button>
               <button onClick={() => setView("chart")} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border ${view === "chart" ? "bg-primary text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground"}`}><BarChart3 className="w-3 h-3" />Infographic</button>
             </div>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-3">
               <div className="lg:col-span-1">
                 <label className="text-[11px] font-medium text-muted-foreground block mb-1">Search</label>
                 <div className="relative">
@@ -188,7 +196,7 @@ export default function IssuesMatrix() {
                 {search && <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>}
               </div>
               </div>
-              <div className="lg:col-span-2">
+              <div className="sm:col-span-2">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[11px] font-medium text-muted-foreground">Date Range</label>
                   {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-[11px] text-primary hover:underline flex items-center gap-0.5"><X className="w-3 h-3" /> Clear</button>}
@@ -276,11 +284,11 @@ export default function IssuesMatrix() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted/60 border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[260px] sticky left-0 bg-muted/60 z-10">Issue</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">Category</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Date</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-28">Location</th>
-                  {shownParties.map((party) => <th key={party.id} className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-center min-w-[140px]" style={{ color: party.color }}>{party.shortName}</th>)}
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[220px] sticky left-0 bg-muted/60 z-10">Issue</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-20">Category</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">Date</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-24">Location</th>
+                  {shownParties.map((party) => <th key={party.id} className="px-2 py-3 text-xs font-bold uppercase tracking-wider text-center min-w-[110px]" style={{ color: party.color }}>{party.shortName}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -290,7 +298,7 @@ export default function IssuesMatrix() {
                     <td className="px-3 py-4"><Skeleton className="h-4 w-16" /></td>
                     <td className="px-3 py-4"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-3 py-4"><Skeleton className="h-4 w-20" /></td>
-                    {shownParties.map((_, j) => <td key={j} className="px-3 py-4"><Skeleton className="h-4 w-20 mx-auto" /></td>)}
+                    {shownParties.map((_, j) => <td key={j} className="px-2 py-4"><Skeleton className="h-4 w-16 mx-auto" /></td>)}
                   </tr>
                 ))}
                 {!loading && filtered.length === 0 && (
@@ -311,10 +319,10 @@ export default function IssuesMatrix() {
                           <div className="font-medium text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 leading-snug">{issue.title}</div>
                         </Link>
                       </td>
-                      <td className="px-3 py-3"><span className="text-xs whitespace-nowrap" style={{ color: catMeta.color }}>{catMeta.emoji} {catMeta.label}</span></td>
+                      <td className="px-3 py-3"><span className="text-[11px] whitespace-nowrap" style={{ color: catMeta.color }}>{catMeta.emoji} {catMeta.label}</span></td>
                       <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{issue.dateOccurred ? new Date(issue.dateOccurred).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : <span className="text-muted-foreground/40">—</span>}</td>
                       <td className="px-3 py-3 text-xs text-muted-foreground">{issue.location ?? <span className="text-muted-foreground/40">—</span>}</td>
-                      {shownParties.map((party) => <td key={party.id} className="px-3 py-3 text-center align-top"><ResponseCell responses={issue.responses[party.shortName] ?? []} /></td>)}
+                      {shownParties.map((party) => <td key={party.id} className="px-2 py-3 text-center align-top"><ResponseCell responses={issue.responses[party.shortName] ?? []} /></td>)}
                     </tr>
                   );
                 })}
