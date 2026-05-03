@@ -17,6 +17,7 @@ import IssuesMatrix from "@/pages/issues-matrix";
 import Approvals from "@/pages/approvals";
 import Parties from "@/pages/parties";
 import Schemes from "@/pages/schemes";
+import Community from "@/pages/community";
 import { AdminProvider } from "@/contexts/admin";
 import { useState, useEffect, createContext, useContext } from "react";
 
@@ -44,6 +45,7 @@ function Router() {
         <Route path="/approvals" component={Approvals} />
         <Route path="/parties" component={Parties} />
         <Route path="/schemes" component={Schemes} />
+        <Route path="/community" component={Community} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

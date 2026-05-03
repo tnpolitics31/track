@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox, Flag, BookOpen } from "lucide-react";
+import { BarChart2, Database, Images, Sun, Moon, ShieldCheck, ClipboardList, Users, Calendar, AlertTriangle, Search, X, FileText, User, Inbox, Flag, BookOpen, Star } from "lucide-react";
 import { useTheme } from "@/App";
 import { useAdmin } from "@/contexts/admin";
 import AdminLoginModal from "@/components/admin-login-modal";
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/events", label: "Events", icon: Calendar, testId: "nav-events" },
   { href: "/gallery", label: "Gallery", icon: Images, testId: "nav-gallery" },
   { href: "/attendance", label: "Attendance", icon: ClipboardList, testId: "nav-attendance" },
+  { href: "/community", label: "Community", icon: Star, testId: "nav-community" },
   { href: "/approvals", label: "Approvals", icon: Inbox, testId: "nav-approvals" },
 ];
 

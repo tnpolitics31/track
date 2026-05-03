@@ -4,6 +4,8 @@ import { ArrowLeft, Twitter, MapPin, Briefcase, FileText, ExternalLink, Users, T
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Input } from "@/components/ui/input";
+import { TweetVoteButtons } from "@/components/tweet-vote-buttons";
+import { AppreciationFilter, hasAppreciationTag } from "@/components/appreciation-filter";
 
 interface Politician {
   id: number; name: string; twitterHandle: string | null; role: string | null;
@@ -294,24 +296,7 @@ export default function PoliticianProfile() {
             </a>
           )}
         </div>
-        {tweets.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">No tweets tracked yet.</div>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {tweets.map((tweet) => (
-              <div key={tweet.id} className="px-4 py-3 hover:bg-muted/30 transition-colors">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <SentimentBadge sentiment={tweet.sentiment} />
-                    <span className="text-xs text-muted-foreground">{new Date(tweet.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-                  </div>
-                  <a href={tweet.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary flex-shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>
-                </div>
-                {tweet.content && <p className="text-sm text-foreground line-clamp-3 leading-relaxed">{tweet.content}</p>}
-              </div>
-            ))}
-          </div>
-        )}
+        <TweetsWithFilters tweets={tweets} />
       </div>
     </div>
   );

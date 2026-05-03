@@ -11,6 +11,7 @@ import syncRouter from "./sync";
 import searchRouter from "./search";
 import pendingRouter from "./pending";
 import schemesRouter from "./schemes";
+import votesRouter from "./votes";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use("/sync", syncRouter);
 router.use("/search", searchRouter);
 router.use("/pending", pendingRouter);
 router.use("/schemes", schemesRouter);
+router.use("/votes", votesRouter);
 
 export default router;

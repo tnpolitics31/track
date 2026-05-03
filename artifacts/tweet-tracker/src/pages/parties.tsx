@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Users, FileText, AlertTriangle, BarChart2, Search, ExternalLink, Image, LayoutGrid, HelpCircle, ChevronRight, Lock, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
+import { TweetVoteButtons } from "@/components/tweet-vote-buttons";
+import { AppreciationFilter, hasAppreciationTag } from "@/components/appreciation-filter";
 
 interface Party { id: number; name: string; shortName: string; color: string; description: string | null; }
 interface Politician { id: number; name: string; twitterHandle: string | null; constituency: string | null; role: string | null; partyColor: string | null; }
@@ -123,10 +125,12 @@ function TweetsTab({ tweets }: { tweets: Tweet[] }) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string | undefined>(undefined);
   const [filterMeme, setFilterMeme] = useState(false);
+  const [appreciationFilter, setAppreciationFilter] = useState<string | null>(null);
 
   const filtered = tweets
     .filter((t) => !filterType || t.type === filterType)
     .filter((t) => !filterMeme || (t.tags ?? "").split(",").map((s) => s.trim().toLowerCase()).includes("meme"))
+    .filter((t) => !appreciationFilter || hasAppreciationTag(t.tags, appreciationFilter))
     .filter((t) => !search || [t.authorName, t.authorHandle, t.content].some((f) => f?.toLowerCase().includes(search.toLowerCase())));
 
   return (
@@ -147,6 +151,10 @@ function TweetsTab({ tweets }: { tweets: Tweet[] }) {
           >🎭 Memes</button>
         </div>
       </div>
+
+      {/* Appreciation / Source filter */}
+      <AppreciationFilter value={appreciationFilter} onChange={setAppreciationFilter} />
+
       {filtered.length === 0 ? (
         <div className="py-16 text-center text-muted-foreground text-sm">No tweets found.</div>
       ) : (
@@ -164,6 +172,9 @@ function TweetsTab({ tweets }: { tweets: Tweet[] }) {
                     ))}
                   </div>
                   {tweet.content && <p className="text-xs text-foreground/70 mt-0.5 line-clamp-2 leading-relaxed">{tweet.content}</p>}
+                  <div className="mt-1.5">
+                    <TweetVoteButtons tweetId={tweet.id} compact />
+                  </div>
                 </div>
                 <a href={tweet.url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors" onClick={(e) => e.stopPropagation()}>
                   <ExternalLink className="w-3.5 h-3.5" />
