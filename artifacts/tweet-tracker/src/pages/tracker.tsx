@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin, getAdminHeaders } from "@/contexts/admin";
-import { Clipboard, RefreshCw, Trash2, ExternalLink, FileText, Image, LayoutGrid, HelpCircle, Search, X, Database, Download, Loader2, AlertTriangle, CheckCircle2, User } from "lucide-react";
+import { Clipboard, RefreshCw, Trash2, ExternalLink, FileText, Image, LayoutGrid, HelpCircle, Search, X, Database, Download, Loader2, AlertTriangle, CheckCircle2, User, Zap } from "lucide-react";
 
 interface TweetPreview {
   tweetId: string;
@@ -236,6 +236,14 @@ export default function Tracker() {
   const [politicians, setPoliticians] = useState<Politician[]>([]);
   const [events, setEvents] = useState<PoliticalEvent[]>([]);
 
+  // Sync dialog state
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncHandle, setSyncHandle] = useState("");
+  const [syncPoliticianId, setSyncPoliticianId] = useState("");
+  const [syncCount, setSyncCount] = useState("20");
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ added: number; skipped: number } | null>(null);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin } = useAdmin();
@@ -303,6 +311,37 @@ export default function Tracker() {
     queryClient.invalidateQueries({ queryKey: getGetTweetStatsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetTweetGalleryQueryKey() });
   }, [queryClient]);
+
+  const handleSync = async () => {
+    const handle = syncHandle.trim().replace(/^@/, "");
+    if (!handle) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/sync/tweets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          handle,
+          politicianId: syncPoliticianId ? Number(syncPoliticianId) : undefined,
+          count: Number(syncCount) || 20,
+        }),
+      });
+      const data = await res.json() as { added: number; skipped: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Sync failed");
+      setSyncResult({ added: data.added, skipped: data.skipped });
+      if (data.added > 0) {
+        refreshList();
+        toast({ title: `Synced ${data.added} new tweet${data.added !== 1 ? "s" : ""}` });
+      } else {
+        toast({ title: "No new tweets found", description: `${data.skipped} already tracked` });
+      }
+    } catch (e: unknown) {
+      toast({ title: "Sync failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const refreshTweet = useRefreshTweet({ mutation: { onSuccess: () => { refreshList(); toast({ title: "Tweet refreshed" }); } } });
 
@@ -381,9 +420,95 @@ export default function Tracker() {
         </div>
       )}
 
+      {/* Sync Dialog */}
+      <Dialog open={syncOpen} onOpenChange={(o) => { setSyncOpen(o); if (!o) setSyncResult(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Zap className="w-4 h-4 text-primary" />Auto-Sync Tweets</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Twitter / X Handle</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                <Input
+                  value={syncHandle}
+                  onChange={(e) => {
+                    setSyncHandle(e.target.value);
+                    setSyncPoliticianId("");
+                    setSyncResult(null);
+                  }}
+                  placeholder="mkstalin"
+                  className="pl-7 text-sm"
+                  disabled={syncing}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Or pick a politician</label>
+              <Select
+                value={syncPoliticianId}
+                onValueChange={(v) => {
+                  setSyncPoliticianId(v === "__none" ? "" : v);
+                  const pol = politicians.find((p) => String(p.id) === v);
+                  if (pol?.twitterHandle) setSyncHandle(pol.twitterHandle);
+                  setSyncResult(null);
+                }}
+                disabled={syncing}
+              >
+                <SelectTrigger className="text-sm h-9">
+                  <SelectValue placeholder="Select politician…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">None</SelectItem>
+                  {politicians.filter((p) => p.twitterHandle).map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} <span className="text-muted-foreground ml-1">@{p.twitterHandle}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fetch last N tweets</label>
+              <Select value={syncCount} onValueChange={setSyncCount} disabled={syncing}>
+                <SelectTrigger className="text-sm h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["10","20","30","50"].map((n) => <SelectItem key={n} value={n}>{n} tweets</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {syncResult && (
+              <div className="flex items-center gap-2 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  <strong>{syncResult.added}</strong> added, <strong>{syncResult.skipped}</strong> already tracked
+                </span>
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleSync}
+              disabled={syncing || !syncHandle.trim()}
+            >
+              {syncing
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Fetching tweets…</>
+                : <><Zap className="w-4 h-4 mr-2" />Sync Now</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Input form */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Track a Tweet</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">Track a Tweet</h2>
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => { setSyncOpen(true); setSyncResult(null); }}>
+            <Zap className="w-3 h-3" />Auto-Sync
+          </Button>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* URL row */}
           <div className="flex gap-2">
