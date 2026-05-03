@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTweets,
   useCreateTweet,
-  useDeleteTweet,
   useRefreshTweet,
   useGetTweetStats,
   getListTweetsQueryKey,
@@ -11,13 +10,13 @@ import {
   getGetTweetGalleryQueryKey,
 } from "@workspace/api-client-react";
 import type { Tweet } from "@workspace/api-client-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAdmin, getAdminHeaders } from "@/contexts/admin";
 import { Clipboard, RefreshCw, Trash2, ExternalLink, FileText, Image, LayoutGrid, HelpCircle, Search, X, Database } from "lucide-react";
 
 function TypeBadge({ type }: { type: string }) {
@@ -52,12 +51,14 @@ function TweetDetailDialog({
   onClose,
   onDelete,
   onRefresh,
+  isAdmin,
 }: {
   tweet: Tweet | null;
   open: boolean;
   onClose: () => void;
   onDelete: (id: number) => void;
   onRefresh: (id: number) => void;
+  isAdmin: boolean;
 }) {
   if (!tweet) return null;
   return (
@@ -135,16 +136,18 @@ function TweetDetailDialog({
               <RefreshCw className="w-3.5 h-3.5" />
               Refresh
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => { onDelete(tweet.id); onClose(); }}
-              data-testid="button-delete-tweet"
-              className="gap-1.5 ml-auto"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { onDelete(tweet.id); onClose(); }}
+                data-testid="button-delete-tweet"
+                className="gap-1.5 ml-auto"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
@@ -192,16 +195,24 @@ export default function Tracker() {
     },
   });
 
-  const deleteTweet = useDeleteTweet({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListTweetsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetTweetStatsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetTweetGalleryQueryKey() });
-        toast({ title: "Tweet removed" });
-      },
-    },
-  });
+  const { isAdmin } = useAdmin();
+
+  const handleDelete = async (id: number) => {
+    try {
+      const res = await fetch(`/api/tweets/${id}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: getListTweetsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetTweetStatsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetTweetGalleryQueryKey() });
+      setDeleteTarget(null);
+      toast({ title: "Tweet removed" });
+    } catch {
+      toast({ title: "Delete failed", description: "Admin password may have changed.", variant: "destructive" });
+    }
+  };
 
   const refreshTweet = useRefreshTweet({
     mutation: {
@@ -436,14 +447,16 @@ export default function Tracker() {
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(tweet.id); }}
-                        className="p-1 text-muted-foreground hover:text-destructive"
-                        data-testid={`button-delete-${tweet.id}`}
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(tweet.id); }}
+                          className="p-1 text-muted-foreground hover:text-destructive"
+                          data-testid={`button-delete-${tweet.id}`}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -460,6 +473,7 @@ export default function Tracker() {
         onClose={() => setSelectedTweet(null)}
         onDelete={(id) => { setDeleteTarget(id); setSelectedTweet(null); }}
         onRefresh={(id) => refreshTweet.mutate({ id })}
+        isAdmin={isAdmin}
       />
 
       {/* Delete confirmation */}
@@ -474,7 +488,7 @@ export default function Tracker() {
           <AlertDialogFooter>
             <AlertDialogCancel className="border-border" data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (deleteTarget !== null) deleteTweet.mutate({ id: deleteTarget }); setDeleteTarget(null); }}
+              onClick={() => { if (deleteTarget !== null) handleDelete(deleteTarget); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >

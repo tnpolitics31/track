@@ -9,6 +9,7 @@ import {
   DeleteTweetParams,
   RefreshTweetParams,
 } from "@workspace/api-zod";
+import { requireAdmin } from "../middlewares/adminAuth";
 
 const router = Router();
 
@@ -210,6 +211,11 @@ router.get("/gallery", async (req, res) => {
   return res.json(tweets);
 });
 
+// POST /tweets/admin-check — verify admin password (must be before /:id routes)
+router.post("/admin-check", requireAdmin, (_req, res) => {
+  return res.json({ ok: true });
+});
+
 // GET /tweets/:id
 router.get("/:id", async (req, res) => {
   const parse = GetTweetParams.safeParse({ id: Number(req.params.id) });
@@ -225,8 +231,8 @@ router.get("/:id", async (req, res) => {
   return res.json(tweet);
 });
 
-// DELETE /tweets/:id
-router.delete("/:id", async (req, res) => {
+// DELETE /tweets/:id — admin only
+router.delete("/:id", requireAdmin, async (req, res) => {
   const parse = DeleteTweetParams.safeParse({ id: Number(req.params.id) });
   if (!parse.success) {
     return res.status(400).json({ error: "Invalid tweet ID" });

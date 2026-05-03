@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetTweetGallery,
-  useDeleteTweet,
   useRefreshTweet,
   getGetTweetGalleryQueryKey,
   getListTweetsQueryKey,
@@ -12,6 +11,7 @@ import type { Tweet } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAdmin, getAdminHeaders } from "@/contexts/admin";
 import { Images, Trash2, ExternalLink, RefreshCw, FileText, Image, LayoutGrid, HelpCircle } from "lucide-react";
 
 function TypeBadge({ type }: { type: string }) {
@@ -34,10 +34,12 @@ function TweetCard({
   tweet,
   onDelete,
   onRefresh,
+  isAdmin,
 }: {
   tweet: Tweet;
   onDelete: (id: number) => void;
   onRefresh: (id: number) => void;
+  isAdmin: boolean;
 }) {
   return (
     <div
@@ -77,14 +79,16 @@ function TweetCard({
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => onDelete(tweet.id)}
-            className="w-7 h-7 bg-black/60 backdrop-blur-sm rounded-md flex items-center justify-center text-white hover:bg-destructive/80 transition-colors"
-            data-testid={`button-delete-card-${tweet.id}`}
-            title="Delete"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onDelete(tweet.id)}
+              className="w-7 h-7 bg-black/60 backdrop-blur-sm rounded-md flex items-center justify-center text-white hover:bg-destructive/80 transition-colors"
+              data-testid={`button-delete-card-${tweet.id}`}
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
       <div className="p-3 space-y-2">
@@ -122,16 +126,24 @@ export default function Gallery() {
     query: { queryKey: getGetTweetGalleryQueryKey() },
   });
 
-  const deleteTweet = useDeleteTweet({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetTweetGalleryQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListTweetsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetTweetStatsQueryKey() });
-        toast({ title: "Tweet removed" });
-      },
-    },
-  });
+  const { isAdmin } = useAdmin();
+
+  const handleDelete = async (id: number) => {
+    try {
+      const res = await fetch(`/api/tweets/${id}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: getGetTweetGalleryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListTweetsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetTweetStatsQueryKey() });
+      setDeleteTarget(null);
+      toast({ title: "Tweet removed" });
+    } catch {
+      toast({ title: "Delete failed", description: "Admin password may have changed.", variant: "destructive" });
+    }
+  };
 
   const refreshTweet = useRefreshTweet({
     mutation: {
@@ -211,6 +223,7 @@ export default function Gallery() {
               tweet={tweet}
               onDelete={(id) => setDeleteTarget(id)}
               onRefresh={(id) => refreshTweet.mutate({ id })}
+              isAdmin={isAdmin}
             />
           ))}
         </div>
@@ -227,7 +240,7 @@ export default function Gallery() {
           <AlertDialogFooter>
             <AlertDialogCancel className="border-border" data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (deleteTarget !== null) deleteTweet.mutate({ id: deleteTarget }); setDeleteTarget(null); }}
+              onClick={() => { if (deleteTarget !== null) handleDelete(deleteTarget); }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >
