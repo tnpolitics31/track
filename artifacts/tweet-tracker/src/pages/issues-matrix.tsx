@@ -174,31 +174,33 @@ export default function IssuesMatrix() {
           {filtersOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </button>
         {filtersOpen && (
-          <div className="px-4 pb-4 space-y-4 border-t border-border/50 pt-3">
+          <div className="px-4 pb-3 space-y-3 border-t border-border/50 pt-2.5">
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => setView("matrix")} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border ${view === "matrix" ? "bg-primary text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground"}`}><Table2 className="w-3.5 h-3.5" />Table</button>
-              <button onClick={() => setView("chart")} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border ${view === "chart" ? "bg-primary text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground"}`}><BarChart3 className="w-3.5 h-3.5" />Infographic</button>
+              <button onClick={() => setView("matrix")} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border ${view === "matrix" ? "bg-primary text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground"}`}><Table2 className="w-3 h-3" />Table</button>
+              <button onClick={() => setView("chart")} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border ${view === "chart" ? "bg-primary text-primary-foreground border-transparent" : "bg-card border-border text-muted-foreground"}`}><BarChart3 className="w-3 h-3" />Infographic</button>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Search</label>
-              <div className="relative">
+            <div className="grid gap-3 lg:grid-cols-3">
+              <div className="lg:col-span-1">
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Search</label>
+                <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Issue title or location..." className="pl-9 bg-background border-border w-full" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Issue title or location..." className="pl-9 bg-background border-border w-full h-9 text-sm" />
                 {search && <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>}
               </div>
+              </div>
+              <div className="lg:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Date Range</label>
+                  {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-[11px] text-primary hover:underline flex items-center gap-0.5"><X className="w-3 h-3" /> Clear</button>}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-background border-border w-full h-9 text-sm" />
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-background border-border w-full h-9 text-sm" />
+                </div>
+              </div>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Date Range</label>
-                {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs text-primary hover:underline flex items-center gap-0.5"><X className="w-3 h-3" /> Clear</button>}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-background border-border w-full text-sm" />
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-background border-border w-full text-sm" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Category</label>
+              <label className="text-[11px] font-medium text-muted-foreground block mb-1">Category</label>
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
                 <button onClick={() => setFilterCategory("")} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${!filterCategory ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>All</button>
                 {CATEGORIES.map((c) => (
@@ -210,7 +212,7 @@ export default function IssuesMatrix() {
             </div>
             {data && (
               <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Show Party Columns</label>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Show Party Columns</label>
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
                   {data.parties.map((p) => {
                     const active = visibleParties.includes(p.shortName);
@@ -223,7 +225,7 @@ export default function IssuesMatrix() {
                 </div>
               </div>
             )}
-            {activeFilterCount > 0 && <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFilterCategory(""); }} className="text-xs text-destructive hover:underline">Clear all filters</button>}
+            {activeFilterCount > 0 && <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFilterCategory(""); }} className="text-[11px] text-destructive hover:underline">Clear all filters</button>}
           </div>
         )}
       </div>
