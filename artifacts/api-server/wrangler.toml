@@ -1,0 +1,12 @@
+name = "track-api"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+[vars]
+ALLOWED_ORIGIN = "https://tn-politics.pages.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "track-db"
+database_id = ""
