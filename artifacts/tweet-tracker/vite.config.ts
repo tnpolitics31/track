@@ -28,6 +28,9 @@ if (!basePath) {
 
 export default defineConfig({
   base: basePath,
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || ''),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -66,6 +69,12 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    proxy: process.env.VITE_API_URL ? {
+      '/api': {
+        target: process.env.VITE_API_URL,
+        changeOrigin: true,
+      },
+    } : undefined,
   },
   preview: {
     port,
