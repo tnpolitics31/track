@@ -1,12 +1,21 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    
+    const apiKey = request.headers.get('x-api-key');
+
+    // API Key protection
+    if (apiKey !== env.API_SECRET) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // CORS headers
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-admin-password',
+      'Access-Control-Allow-Headers': 'Content-Type, x-admin-password, x-api-key',
     };
 
     if (request.method === 'OPTIONS') {
@@ -20,29 +29,23 @@ export default {
       });
     }
 
-    // API Routes - return simple response for now
+    // API Routes
     if (url.pathname === '/api/parties') {
-      // Note: Turso not connected yet - need D1 or external DB
+      // Database not connected yet
       return new Response(JSON.stringify({ 
-        message: "API working but database not connected. Set up D1 database.",
-        tables: ['parties', 'tweets', 'politicians', 'events', 'issues', 'schemes', 'votes']
+        message: "Database not configured. Create D1 database."
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    if (url.pathname.startsWith('/api/')) {
-      return new Response(JSON.stringify({ 
-        error: "Database not configured. Create a D1 database in Cloudflare dashboard.",
-        path: url.pathname
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      });
-    }
-
-    return new Response('TRACK API - Configure D1 database to use', { 
-      headers: { ...corsHeaders } 
+    // Default response
+    return new Response(JSON.stringify({ 
+      error: "API endpoint not found",
+      path: url.pathname
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 404
     });
   }
 };
