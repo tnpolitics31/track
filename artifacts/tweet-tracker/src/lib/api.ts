@@ -1,6 +1,10 @@
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-export async function apiFetch(url: string, options?: RequestInit) {
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
-  return fetch(fullUrl, options);
-}
+const originalFetch = window.fetch;
+window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const fullUrl = url.startsWith('/api') ? `${API_BASE}${url}` : url;
+  return originalFetch(fullUrl, init);
+};
+
+export {};
