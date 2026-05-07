@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "eMtlP5AtQs9qUZVIvaXy9"
+uri = "file://artifacts/tweet-tracker/src/assets/images/monthly-infographic-template.png"
+type = "image"
+title = "Monthly political infographic template"
