@@ -2,6 +2,11 @@ name = "track-api"
 main = "src/worker.js"
 compatibility_date = "2024-01-01"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "track-db"
+database_id = "8b6481b2-5a16-4a1b-9277-391c00c7f6af"
+
 [vars]
 ALLOWED_ORIGIN = "https://tnpolitics.pages.dev"
 API_SECRET = "my-secret-key-123"
