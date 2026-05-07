@@ -3,8 +3,9 @@ main = "src/worker.js"
 compatibility_date = "2024-01-01"
 
 [vars]
-ALLOWED_ORIGIN = "https://tn-politics.pages.dev"
-API_SECRET = "your-secret-key-change-me"
+ALLOWED_ORIGIN = "https://tnpolitics.pages.dev"
+API_SECRET = "my-secret-key-123"
+ADMIN_PASSWORD = "admin123"
 
 # Twitter API - set these in Cloudflare dashboard
 # TWITTER_AUTH_TOKEN = ""
