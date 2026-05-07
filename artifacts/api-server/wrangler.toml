@@ -11,3 +11,5 @@ ADMIN_PASSWORD = "admin123"
 # TWITTER_AUTH_TOKEN = ""
 # TWITTER_CT0 = ""
 # BOT_HANDLE = ""
+
+# Auto-deploy test
